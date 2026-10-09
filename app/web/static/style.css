@@ -51,6 +51,12 @@ header {
   text-decoration: none;
 }
 
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
 nav {
   display: flex;
   gap: 1rem;

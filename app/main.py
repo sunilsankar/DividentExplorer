@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router as api_router
@@ -53,6 +54,15 @@ if static_dir.exists():
 # Mount routers
 app.include_router(api_router)
 app.include_router(web_router)
+
+
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
+def favicon():
+    ico_path = Path(__file__).parent / "web" / "static" / "img" / "favicon.ico"
+    if ico_path.exists():
+        return FileResponse(ico_path, media_type="image/x-icon")
+    svg_path = Path(__file__).parent / "web" / "static" / "img" / "logo.svg"
+    return FileResponse(svg_path, media_type="image/svg+xml")
 
 
 @app.get("/health", tags=["system"])

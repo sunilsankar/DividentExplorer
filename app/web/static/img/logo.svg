@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="100%" height="100%">
+  <!-- Letter D -->
+  <path fill="#1d3774" fill-rule="evenodd" d="
+    M 318,258
+    H 530
+    C 670,258 762,366 762,500
+    C 762,634 670,742 530,742
+    H 318
+    Z
+    M 426,358
+    H 520
+    C 600,358 654,420 654,500
+    C 654,580 600,642 520,642
+    H 426
+    Z
+  "/>
+
+  <!-- Trendline -->
+  <path d="M 86,660 L 425,395 L 560,592 L 860,298"
+        fill="none"
+        stroke="#70ba35"
+        stroke-width="44"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Start Node (Bottom Left) -->
+  <circle cx="86" cy="660" r="56" fill="#70ba35"/>
+  <circle cx="86" cy="660" r="24" fill="#ffffff"/>
+
+  <!-- End Node (Top Right) -->
+  <circle cx="860" cy="298" r="56" fill="#70ba35"/>
+  <circle cx="860" cy="298" r="24" fill="#ffffff"/>
+</svg>
