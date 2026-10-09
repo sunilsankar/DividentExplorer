@@ -176,21 +176,22 @@ The backup utility uses SQLite's native online backup API (`sqlite3.Connection.b
 
 ## Production Deployment
 
-Dividend Explorer follows a native single-server deployment model (no Docker or microservices in V1). Two processes run under `systemd`: the FastAPI web application and the background sync worker.
+Dividend Explorer follows a native single-server deployment model (no Docker or microservices in V1). Two processes run under `systemd`: the FastAPI web application and the background sync worker. The server syncs updates directly from GitHub.
 
-### 1. Server Setup & Dependencies
+### 1. Server Setup & Dependencies (One-Time Bootstrap)
 
 ```bash
 # Clone repository
-git clone <repo-url> /opt/dividend-explorer
+git clone https://github.com/sunilsankar/DividentExplorer.git /opt/dividend-explorer
 cd /opt/dividend-explorer
 
-# Create virtual environment and install
+# Create virtual environment and install package
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
 # Configure environment and run migrations
+# Note: .env and data/ are gitignored and reside only on this server
 cp .env.example .env
 alembic upgrade head
 ```
@@ -246,32 +247,40 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now dividend-web dividend-worker
 ```
 
-### 3. Reverse Proxy
+### 3. Access & Reverse Proxy
 
-**Caddy** (automatic HTTPS):
-
-```caddyfile
-dividend.yourdomain.com {
-    reverse_proxy 127.0.0.1:8000
-}
+**LAN / Local Access (Default)**:
+No reverse proxy is needed. For LAN access, adjust `--host 0.0.0.0` in `dividend-web.service` or use an SSH tunnel from your client:
+```bash
+ssh -L 8000:localhost:8000 user@server-ip
+# Then open http://localhost:8000 on your local machine
 ```
 
-**Nginx**:
+**Public Exposure (Optional)**:
+If exposing publicly with a domain:
 
-```nginx
-server {
-    listen 80;
-    server_name dividend.yourdomain.com;
+- **Caddy** (automatic HTTPS):
+  ```caddyfile
+  dividend.yourdomain.com {
+      reverse_proxy 127.0.0.1:8000
+  }
+  ```
 
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
+- **Nginx**:
+  ```nginx
+  server {
+      listen 80;
+      server_name dividend.yourdomain.com;
+
+      location / {
+          proxy_pass http://127.0.0.1:8000;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+      }
+  }
+  ```
 
 ### 4. Automated Backup Schedule
 
@@ -282,18 +291,21 @@ Add a daily cron job using the online backup tool:
 0 2 * * * /opt/dividend-explorer/.venv/bin/python -m app.db.backup backup --database /opt/dividend-explorer/data/dividend-explorer.db --output /var/backups/dividend-explorer-$(date +\%F).db
 ```
 
-### 5. Application Updates
+### 5. Application Updates (One-Command Deploy via Git)
 
-Deploy updates with zero schema inconsistency:
+Whenever you push code changes from your development machine to GitHub, deploy them on the server with a single command:
 
 ```bash
 cd /opt/dividend-explorer
-git pull
-source .venv/bin/activate
-pip install -e .
-alembic upgrade head
-sudo systemctl restart dividend-web dividend-worker
+./scripts/deploy.sh
 ```
+
+The deploy script automatically:
+1. `git pull --ff-only` — safely pulls fast-forward commits from GitHub without accidental merge commits.
+2. Updates dependencies via `.venv/bin/pip install -e .`.
+3. Safely stops `dividend-web` and `dividend-worker` so SQLite DDL schema updates can acquire an exclusive lock without blocking or crashing running workers.
+4. Runs `alembic upgrade head` to apply any new database migrations.
+5. Starts `dividend-worker` and `dividend-web` back up and prints their status.
 
 ---
 
