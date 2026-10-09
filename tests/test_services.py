@@ -68,7 +68,8 @@ class ServicesTestCase(unittest.TestCase):
         self.assertEqual(len(recent_jobs), 1)
 
     def test_sync_service_exchange_progress(self) -> None:
-        ex_job = self.sync_service.enqueue_exchange_sync("AMS")
+        ex_job, dedup = self.sync_service.enqueue_exchange_sync("AMS")
+        self.assertFalse(dedup)
         self.session.commit()
 
         progress = self.sync_service.get_exchange_progress("AMS")
@@ -106,6 +107,22 @@ class ServicesTestCase(unittest.TestCase):
         # Test get_stuck_running_count
         count_zero = self.sync_service.get_stuck_running_count(threshold_seconds=300)
         self.assertEqual(count_zero, 0)
+
+    def test_sync_service_enqueue_exchange_sync_dedup_flag(self):
+        job1, dedup1 = self.sync_service.enqueue_exchange_sync("AMS")
+        self.assertFalse(dedup1)
+
+        job2, dedup2 = self.sync_service.enqueue_exchange_sync("AMS")
+        self.assertTrue(dedup2)
+        self.assertEqual(job1.id, job2.id)
+
+        # Cancel in flight and check dedup=False
+        cancelled = self.sync_service.cancel_in_flight_exchange_syncs("AMS")
+        self.assertEqual(cancelled, 1)
+
+        job3, dedup3 = self.sync_service.enqueue_exchange_sync("AMS")
+        self.assertFalse(dedup3)
+        self.assertNotEqual(job1.id, job3.id)
 
 
 if __name__ == "__main__":

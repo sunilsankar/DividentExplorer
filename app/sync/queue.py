@@ -33,6 +33,9 @@ class SyncQueue:
                 SyncJob.job_type == job_type,
                 SyncJob.status.in_(["PENDING", "RUNNING", "RETRY"]),
             )
+            # ponytail: scope to parent if child job, so separate exchange runs can discover their own jobs
+            if parent_job_id is not None:
+                stmt = stmt.where(SyncJob.parent_job_id == parent_job_id)
             if ticker_norm:
                 stmt = stmt.where(SyncJob.ticker == ticker_norm)
             if entity_type:

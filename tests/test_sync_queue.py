@@ -165,6 +165,33 @@ class SyncQueueTestCase(unittest.TestCase):
         self.assertEqual(len(active), 1)
         self.assertEqual(active[0].worker_id, "worker-node-1")
 
+    def test_enqueue_dedups_within_same_parent(self) -> None:
+        p = self.queue.enqueue(self.session, "SYNC_EXCHANGE", ticker="US")
+        self.session.flush()
+        j1 = self.queue.enqueue(self.session, "SYNC_COMPANY", ticker="AAPL", parent_job_id=p.id)
+        j2 = self.queue.enqueue(self.session, "SYNC_COMPANY", ticker="AAPL", parent_job_id=p.id)
+        self.assertEqual(j1.id, j2.id)
+
+    def test_enqueue_allows_different_parents(self) -> None:
+        p1 = self.queue.enqueue(self.session, "SYNC_EXCHANGE", ticker="US")
+        p2 = self.queue.enqueue(self.session, "SYNC_EXCHANGE", ticker="EU")
+        self.session.flush()
+        j1 = self.queue.enqueue(self.session, "SYNC_COMPANY", ticker="AAPL", parent_job_id=p1.id)
+        j2 = self.queue.enqueue(self.session, "SYNC_COMPANY", ticker="AAPL", parent_job_id=p2.id)
+        self.assertNotEqual(j1.id, j2.id)
+
+    def test_enqueue_legacy_global_dedup_when_no_parent(self) -> None:
+        j1 = self.queue.enqueue(self.session, "SYNC_COMPANY", ticker="AAPL")
+        self.session.flush()
+        j2 = self.queue.enqueue(self.session, "SYNC_COMPANY", ticker="AAPL")
+        self.assertEqual(j1.id, j2.id)
+
+    def test_enqueue_dedup_false_always_inserts(self) -> None:
+        j1 = self.queue.enqueue(self.session, "SYNC_COMPANY", ticker="AAPL", deduplicate=False)
+        self.session.flush()
+        j2 = self.queue.enqueue(self.session, "SYNC_COMPANY", ticker="AAPL", deduplicate=False)
+        self.assertNotEqual(j1.id, j2.id)
+
 
 if __name__ == "__main__":
     unittest.main()

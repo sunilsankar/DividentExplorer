@@ -216,6 +216,15 @@ class YahooClient:
 
         # Check default curated list first
         results: List[DiscoveredTicker] = list(DEFAULT_EXCHANGE_TICKERS.get(code, []))
+        # ponytail: dedup by symbol; screener/curated lists can have duplicate tickers across sub-markets
+        seen: set[str] = set()
+        unique_results: List[DiscoveredTicker] = []
+        for t in results:
+            sym = t.ticker.strip().upper()
+            if sym not in seen:
+                seen.add(sym)
+                unique_results.append(t)
+        results = unique_results
         self._set_cached(cache_key, results)
         return results
 

@@ -411,6 +411,32 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json(), {"status": "ok"})
 
+    def test_trigger_exchange_sync_shows_dedup_hint(self):
+        resp1 = self.client.post("/sync/trigger", data={"exchange": "AMS"})
+        self.assertEqual(resp1.status_code, 200)
+        self.assertNotIn("already queued/running", resp1.text)
+
+        resp2 = self.client.post("/sync/trigger", data={"exchange": "AMS"})
+        self.assertEqual(resp2.status_code, 200)
+        self.assertIn("already queued/running", resp2.text)
+
+    def test_force_exchange_sync_cancels_in_flight(self):
+        self.client.post("/sync/trigger", data={"exchange": "AMS"})
+        j1 = self.session.query(SyncJob).filter_by(job_type="SYNC_EXCHANGE", ticker="AMS").first()
+        self.assertEqual(j1.status, "PENDING")
+
+        resp = self.client.post("/sync/force", data={"exchange": "AMS"})
+        self.assertEqual(resp.status_code, 200)
+
+        # Refresh session to see db changes
+        self.session.expire_all()
+        self.session.refresh(j1)
+        self.assertEqual(j1.status, "CANCELLED")
+
+        j2 = self.session.query(SyncJob).filter_by(job_type="SYNC_EXCHANGE", ticker="AMS", status="PENDING").first()
+        self.assertIsNotNone(j2)
+        self.assertNotEqual(j1.id, j2.id)
+
 
 if __name__ == "__main__":
     unittest.main()

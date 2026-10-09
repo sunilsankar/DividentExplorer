@@ -69,10 +69,16 @@
       <td>{{ ex.last_synced_at.strftime('%Y-%m-%d %H:%M') if ex.last_synced_at else 'Never' }}</td>
       <td><span class="badge badge-neutral">{{ ex.companies_count }}</span></td>
       <td>
-        <form hx-post="/sync/trigger" hx-swap="none" style="margin: 0; display: inline-block;">
-          <input type="hidden" name="exchange" value="{{ ex.code }}">
-          <button type="submit" class="button-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Sync Now</button>
-        </form>
+        <div style="display: flex; gap: 0.35rem;">
+          <form hx-post="/sync/trigger" hx-swap="none" style="margin: 0; display: inline-block;">
+            <input type="hidden" name="exchange" value="{{ ex.code }}">
+            <button type="submit" class="button-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Sync Now</button>
+          </form>
+          <form hx-post="/sync/force" hx-target="#exchange-table-container" hx-select="#exchange-table-container" hx-swap="outerHTML" style="margin: 0; display: inline-block;">
+            <input type="hidden" name="exchange" value="{{ ex.code }}">
+            <button type="submit" class="button-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; border-color: var(--danger-color); color: var(--danger-color);" title="Cancel any in-flight sync and queue fresh discovery">Force</button>
+          </form>
+        </div>
       </td>
     </tr>
     {% else %}

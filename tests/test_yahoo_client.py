@@ -90,6 +90,20 @@ class TestYahooClient(unittest.TestCase):
         divs = client.get_dividends("NODIV")
         self.assertEqual(divs, [])
 
+    def test_discover_tickers_dedups_results(self):
+        from app.yahoo.client import DiscoveredTicker
+        with patch.dict("app.yahoo.client.DEFAULT_EXCHANGE_TICKERS", {
+            "TEST": [
+                DiscoveredTicker("T1", "Name 1", "US"),
+                DiscoveredTicker("T2", "Name 2", "US"),
+                DiscoveredTicker("T1", "Name 1 duplicate", "US"),
+            ]
+        }):
+            client = YahooClient()
+            res = client.discover_tickers("TEST")
+            self.assertEqual(len(res), 2)
+            self.assertEqual([t.ticker for t in res], ["T1", "T2"])
+
 
 if __name__ == "__main__":
     unittest.main()

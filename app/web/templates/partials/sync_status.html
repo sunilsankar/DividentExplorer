@@ -1,5 +1,14 @@
 <div id="sync-status-container" hx-get="/sync/status?tab={{ tab }}" hx-trigger="every 5s" hx-swap="outerHTML">
 
+  {% if sync_dedup_hint %}
+  <div class="status-banner status-warn" style="margin-bottom: 1rem;">
+    <div>
+      <span class="status-dot dot-warn"></span>
+      <strong>Notice:</strong> {{ sync_dedup_hint }}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Hero Status Banner -->
   {% if summary.workers == 0 %}
   <div class="status-banner status-down">

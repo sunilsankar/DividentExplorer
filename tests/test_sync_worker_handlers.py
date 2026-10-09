@@ -176,6 +176,39 @@ class TestSyncWorkerHandlers(unittest.TestCase):
             self.assertEqual(active[0].worker_id, "test-idle-worker")
             self.assertEqual(active[0].status, "IDLE")
 
+    def test_handle_sync_exchange_dedups_screener_results(self):
+        self.yahoo.discover_tickers.return_value = [
+            DiscoveredTicker("JNJ", "Johnson & Johnson", "US"),
+            DiscoveredTicker("AAPL", "Apple", "US"),
+            DiscoveredTicker("JNJ", "Johnson & Johnson", "US"),
+            DiscoveredTicker("JNJ", "Johnson & Johnson", "US"),
+        ]
+        job = self.queue.enqueue(self.session, job_type="SYNC_EXCHANGE", ticker="US")
+        result = dispatch_job(job, self.session, self.yahoo, self.rate_limiter, self.queue)
+        child_jobs = self.session.query(SyncJob).filter_by(parent_job_id=job.id).all()
+        self.assertEqual(len(child_jobs), 2)
+        tickers = {j.ticker for j in child_jobs}
+        self.assertEqual(tickers, {"JNJ", "AAPL"})
+
+    def test_handle_sync_exchange_force_enqueues_existing_companies(self):
+        # Pre-seed existing exchange, company, and existing previous child job under old parent
+        exch = ExchangeRepository(self.session).get_or_create(code="US", name="US")
+        comp_repo = CompanyRepository(self.session)
+        comp_repo.upsert(ticker="JNJ", name="JNJ", exchange_id=exch.id)
+        old_job = self.queue.enqueue(self.session, job_type="SYNC_EXCHANGE", ticker="US")
+        self.queue.enqueue(self.session, job_type="SYNC_COMPANY", ticker="JNJ", parent_job_id=old_job.id)
+        self.session.commit()
+
+        # Run fresh exchange sync with new parent job
+        new_job = self.queue.enqueue(self.session, job_type="SYNC_EXCHANGE", ticker="US", deduplicate=False)
+        self.yahoo.discover_tickers.return_value = [DiscoveredTicker("JNJ", "JNJ", "US")]
+        dispatch_job(new_job, self.session, self.yahoo, self.rate_limiter, self.queue)
+
+        # Assert new child job is enqueued under new_job.id
+        new_children = self.session.query(SyncJob).filter_by(parent_job_id=new_job.id).all()
+        self.assertEqual(len(new_children), 1)
+        self.assertEqual(new_children[0].ticker, "JNJ")
+
 
 if __name__ == "__main__":
     unittest.main()

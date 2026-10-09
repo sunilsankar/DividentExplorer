@@ -51,15 +51,49 @@ class SyncService:
         return job
 
     # ponytail: priority 4 ensures worker drains company (8) and sub-jobs (7) before next exchange discovery
-    def enqueue_exchange_sync(self, exchange_code: str, priority: int = 4) -> SyncJob:
+    def enqueue_exchange_sync(
+        self,
+        exchange_code: str,
+        priority: int = 4,
+        deduplicate: bool = True,
+    ) -> tuple[SyncJob, bool]:
+        code = exchange_code.upper().strip()
+        if deduplicate:
+            existing = self.session.execute(
+                select(SyncJob).where(
+                    SyncJob.job_type == "SYNC_EXCHANGE",
+                    SyncJob.ticker == code,
+                    SyncJob.status.in_(["PENDING", "RUNNING", "RETRY"]),
+                )
+            ).scalars().first()
+            if existing:
+                return existing, True
+
         job = self.queue.enqueue(
             session=self.session,
             job_type="SYNC_EXCHANGE",
-            ticker=exchange_code.upper(),
+            ticker=code,
             priority=priority,
+            deduplicate=deduplicate,
         )
         self.session.commit()
-        return job
+        return job, False
+
+    def cancel_in_flight_exchange_syncs(self, exchange_code: str) -> int:
+        code = exchange_code.upper().strip()
+        jobs = self.session.execute(
+            select(SyncJob).where(
+                SyncJob.job_type == "SYNC_EXCHANGE",
+                SyncJob.ticker == code,
+                SyncJob.status.in_(["PENDING", "RUNNING", "RETRY"]),
+            )
+        ).scalars().all()
+        count = 0
+        for j in jobs:
+            self.queue.cancel_job(self.session, j.id)
+            count += 1
+        self.session.commit()
+        return count
 
     def retry_all_failed(self) -> int:
         retried = self.queue.retry_all_failed(self.session)

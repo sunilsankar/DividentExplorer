@@ -391,12 +391,32 @@ def trigger_sync(
     db: Session = Depends(get_db),
 ):
     sync_service = SyncService(db)
+    hint: Optional[str] = None
     if ticker:
         sync_service.enqueue_company_sync(ticker.strip().upper(), priority=9)
     elif exchange:
-        sync_service.enqueue_exchange_sync(exchange.strip().upper())
+        code = exchange.strip().upper()
+        job, deduplicated = sync_service.enqueue_exchange_sync(code)
+        if deduplicated:
+            hint = f"Exchange {code} sync is already queued/running (Job #{job.id})."
     db.commit()
-    return sync_status_partial(request=request, tab=tab, db=db)
+    context = _build_sync_context(db, tab=tab)
+    if hint:
+        context["sync_dedup_hint"] = hint
+    return templates.TemplateResponse(request=request, name="partials/sync_status.html", context=context)
+
+
+@router.post("/sync/force", response_class=HTMLResponse)
+def force_exchange_sync(
+    request: Request,
+    exchange: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    code = exchange.strip().upper()
+    sync_service = SyncService(db)
+    sync_service.cancel_in_flight_exchange_syncs(code)
+    sync_service.enqueue_exchange_sync(code, deduplicate=False)
+    return exchange_sync_view(request=request, db=db)
 
 
 @router.post("/sync/retry-failed", response_class=HTMLResponse)
