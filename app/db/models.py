@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 from sqlalchemy import (
     BigInteger,
     Boolean,
