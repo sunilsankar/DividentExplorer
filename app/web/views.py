@@ -112,7 +112,7 @@ def stocks_view(
         request=request,
         name="stocks.html",
         context={
-            "active_tab": "stocks",
+            "active_tab": "etfs" if asset_type == "ETF" else "stocks",
             "stocks": res["items"],
             "total_count": res["total"],
             "page": res["page"],

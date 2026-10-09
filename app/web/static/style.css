@@ -78,6 +78,29 @@ nav a:hover, nav a.active {
   background-color: var(--bg-tertiary);
 }
 
+.header-search {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.header-search input {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  min-width: 180px;
+  max-width: 240px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.15s;
+}
+
+.header-search input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
 main {
   flex: 1;
   max-width: 1200px;

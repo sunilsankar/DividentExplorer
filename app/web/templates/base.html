@@ -19,6 +19,7 @@
     <nav>
       <a href="/" class="{% if active_tab == 'dashboard' %}active{% endif %}">Dashboard</a>
       <a href="/stocks" class="{% if active_tab == 'stocks' %}active{% endif %}">Stocks</a>
+      <a href="/stocks?asset_type=ETF" class="{% if active_tab == 'etfs' %}active{% endif %}">ETFs</a>
       <a href="/industries" class="{% if active_tab == 'industries' %}active{% endif %}">Industries</a>
       <a href="/competitors" class="{% if active_tab == 'competitors' %}active{% endif %}">Competitors</a>
       <a href="/calendar" class="{% if active_tab == 'calendar' %}active{% endif %}">Calendar</a>
@@ -26,6 +27,9 @@
       <a href="/sync" class="{% if active_tab == 'sync' %}active{% endif %}">Sync Status</a>
       <a href="/changes" class="{% if active_tab == 'changes' %}active{% endif %}">Changes</a>
     </nav>
+    <form action="/stocks" method="get" class="header-search">
+      <input type="text" name="q" placeholder="Search ticker or name..." value="{{ query or '' }}">
+    </form>
   </header>
 
   <main>

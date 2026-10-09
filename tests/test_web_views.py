@@ -67,7 +67,15 @@ class WebViewsTestCase(unittest.TestCase):
             asset_type="ETF",
             is_active=True,
         )
-        self.session.add_all([jnj, msft, schd])
+        pfe = Company(
+            ticker="PFE",
+            exchange_id=nyse.id,
+            name="Pfizer Inc",
+            sector="Healthcare",
+            industry="Drug Manufacturers",
+            is_active=True,
+        )
+        self.session.add_all([jnj, msft, schd, pfe])
         self.session.flush()
 
         metric = DividendMetric(
@@ -80,7 +88,17 @@ class WebViewsTestCase(unittest.TestCase):
             years_growing=15,
             quality_score=85.0,
         )
-        self.session.add(metric)
+        pfe_metric = DividendMetric(
+            company_id=pfe.id,
+            current_yield=5.8,
+            annual_dividend=1.68,
+            growth_3y=3.2,
+            payout_ratio=0.72,
+            years_paying=25,
+            years_growing=12,
+            quality_score=78.0,
+        )
+        self.session.add_all([metric, pfe_metric])
 
         event = DividendEvent(
             company_id=jnj.id,
@@ -178,6 +196,13 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("MSFT", resp.text)
         self.assertIn("SCHD", resp.text)
         self.assertIn("ETF", resp.text)
+        self.assertIn('class="header-search"', resp.text)
+        self.assertIn('class="active">Stocks</a>', resp.text)
+
+        # ETFs tab navigation
+        resp_etfs = self.client.get("/stocks?asset_type=ETF")
+        self.assertEqual(resp_etfs.status_code, 200)
+        self.assertIn('class="active">ETFs</a>', resp_etfs.text)
 
     def test_stocks_table_partial(self):
         resp = self.client.get("/stocks/table?q=JNJ")
@@ -200,6 +225,12 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("Recent Price History", resp.text)
         self.assertIn("dividendChart", resp.text)
         self.assertIn("priceChart", resp.text)
+        # Verify peer rendering (PFE is in same industry Drug Manufacturers)
+        self.assertIn("Industry Peers (Drug Manufacturers)", resp.text)
+        self.assertIn("PFE", resp.text)
+        self.assertIn("Pfizer Inc", resp.text)
+        self.assertIn("5.80%", resp.text)
+        self.assertIn("78.0", resp.text)
 
     def test_stock_detail_redirect_on_missing(self):
         resp = self.client.get("/stocks/UNKNOWN", follow_redirects=False)

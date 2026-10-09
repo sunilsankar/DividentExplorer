@@ -264,13 +264,13 @@
     <tr>
       <td><strong><a href="/stocks/{{ peer.ticker }}">{{ peer.ticker }}</a></strong></td>
       <td>{{ peer.name }}</td>
-      <td>{{ ("%.2f%%"|format(peer.current_yield)) if peer.current_yield is not none else '—' }}</td>
+      <td>{{ ("%.2f%%"|format(peer.metric.current_yield)) if peer.metric and peer.metric.current_yield is not none else '—' }}</td>
       <td>
-        <span class="badge {% if peer.dividend_quality_score and peer.dividend_quality_score >= 70 %}badge-success{% elif peer.dividend_quality_score and peer.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
-          {{ peer.dividend_quality_score if peer.dividend_quality_score is not none else 'N/A' }}
+        <span class="badge {% if peer.metric and peer.metric.dividend_quality_score and peer.metric.dividend_quality_score >= 70 %}badge-success{% elif peer.metric and peer.metric.dividend_quality_score and peer.metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ peer.metric.dividend_quality_score if peer.metric and peer.metric.dividend_quality_score is not none else 'N/A' }}
         </span>
       </td>
-      <td>{{ ("%.1f%%"|format(peer.payout_ratio * 100)) if peer.payout_ratio is not none else '—' }}</td>
+      <td>{{ ("%.1f%%"|format(peer.metric.payout_ratio * 100)) if peer.metric and peer.metric.payout_ratio is not none else '—' }}</td>
     </tr>
     {% endfor %}
   </tbody>
