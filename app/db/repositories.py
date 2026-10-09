@@ -1,6 +1,6 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional, Sequence
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, exists, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -12,6 +12,7 @@ from app.db.models import (
     Exchange,
     FinancialMetric,
     PriceHistory,
+    SyncJob,
     SyncRun,
     SyncState,
     WorkerStatus,
@@ -112,18 +113,17 @@ class CompanyRepository:
             stmt = stmt.where(Company.exchange_id == exchange_id)
         return self.session.execute(stmt).scalars().first()
 
-    def list_companies(
+    def _filter_companies(
         self,
+        stmt: Any,
         exchange_id: Optional[int] = None,
         sector: Optional[str] = None,
         industry: Optional[str] = None,
         asset_type: Optional[str] = None,
         search: Optional[str] = None,
         is_active: Optional[bool] = True,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> Sequence[Company]:
-        stmt = select(Company)
+        sync_state: Optional[str] = None,
+    ) -> Any:
         if exchange_id is not None:
             stmt = stmt.where(Company.exchange_id == exchange_id)
         if sector:
@@ -137,6 +137,41 @@ class CompanyRepository:
         if search:
             pattern = f"%{search.strip()}%"
             stmt = stmt.where(Company.ticker.ilike(pattern) | Company.name.ilike(pattern))
+        if sync_state == "never":
+            stmt = stmt.where(Company.last_synced_at.is_(None))
+        elif sync_state == "stale_7":
+            stmt = stmt.where(Company.last_synced_at < utcnow() - timedelta(days=7))
+        elif sync_state == "stale_30":
+            stmt = stmt.where(Company.last_synced_at < utcnow() - timedelta(days=30))
+        elif sync_state == "failed":
+            # ponytail: subquery match on ticker; assumes unique tickers across active exchanges
+            stmt = stmt.where(
+                exists().where(SyncJob.ticker == Company.ticker, SyncJob.status == "FAILED")
+            )
+        return stmt
+
+    def list_companies(
+        self,
+        exchange_id: Optional[int] = None,
+        sector: Optional[str] = None,
+        industry: Optional[str] = None,
+        asset_type: Optional[str] = None,
+        search: Optional[str] = None,
+        is_active: Optional[bool] = True,
+        sync_state: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Sequence[Company]:
+        stmt = self._filter_companies(
+            select(Company),
+            exchange_id=exchange_id,
+            sector=sector,
+            industry=industry,
+            asset_type=asset_type,
+            search=search,
+            is_active=is_active,
+            sync_state=sync_state,
+        )
         stmt = stmt.order_by(Company.ticker).limit(limit).offset(offset)
         return self.session.execute(stmt).scalars().all()
 
@@ -148,21 +183,18 @@ class CompanyRepository:
         asset_type: Optional[str] = None,
         search: Optional[str] = None,
         is_active: Optional[bool] = True,
+        sync_state: Optional[str] = None,
     ) -> int:
-        stmt = select(func.count(Company.id))
-        if exchange_id is not None:
-            stmt = stmt.where(Company.exchange_id == exchange_id)
-        if sector:
-            stmt = stmt.where(Company.sector == sector)
-        if industry:
-            stmt = stmt.where(Company.industry == industry)
-        if asset_type:
-            stmt = stmt.where(Company.asset_type == asset_type.upper().strip())
-        if is_active is not None:
-            stmt = stmt.where(Company.is_active.is_(is_active))
-        if search:
-            pattern = f"%{search.strip()}%"
-            stmt = stmt.where(Company.ticker.ilike(pattern) | Company.name.ilike(pattern))
+        stmt = self._filter_companies(
+            select(func.count(Company.id)),
+            exchange_id=exchange_id,
+            sector=sector,
+            industry=industry,
+            asset_type=asset_type,
+            search=search,
+            is_active=is_active,
+            sync_state=sync_state,
+        )
         return self.session.execute(stmt).scalar() or 0
 
     def list_by_exchange(self, exchange_id: int) -> Sequence[Company]:

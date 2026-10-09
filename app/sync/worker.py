@@ -51,6 +51,7 @@ class SyncWorker:
             # Reclaim stale jobs from crashed workers
             self.queue.reap_stale_jobs(session)
             WorkerHeartbeatManager.heartbeat(session, worker_id=self.worker_id, status="IDLE")
+            session.commit()
 
             # Check if rate limiter is currently paused due to upstream throttling
             if self.rate_limiter.is_paused:

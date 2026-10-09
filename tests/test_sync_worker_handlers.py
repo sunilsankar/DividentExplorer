@@ -161,6 +161,21 @@ class TestSyncWorkerHandlers(unittest.TestCase):
         self.assertEqual(updated_job2.status, "RETRY")
         self.assertTrue(worker.rate_limiter.is_paused)
 
+    @patch("app.sync.worker.SessionLocal")
+    def test_worker_idle_heartbeat_persisted(self, mock_session_local):
+        mock_session_local.side_effect = self.Session
+
+        worker = SyncWorker(worker_id="test-idle-worker", poll_interval=0.1, request_delay=0.0)
+        processed = worker.run_once()
+        self.assertFalse(processed)
+
+        with self.Session() as s:
+            from app.sync.queue import WorkerHeartbeatManager
+            active = WorkerHeartbeatManager.get_active_workers(s, timeout_seconds=60)
+            self.assertEqual(len(active), 1)
+            self.assertEqual(active[0].worker_id, "test-idle-worker")
+            self.assertEqual(active[0].status, "IDLE")
+
 
 if __name__ == "__main__":
     unittest.main()

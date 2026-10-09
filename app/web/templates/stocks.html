@@ -30,6 +30,14 @@
     <option value="growth" {% if sort == 'growth' %}selected{% endif %}>Sort by Dividend Growth</option>
   </select>
 
+  <select name="sync_state">
+    <option value="">All Sync States</option>
+    <option value="never" {% if selected_sync_state == 'never' %}selected{% endif %}>Never Synced</option>
+    <option value="stale_7" {% if selected_sync_state == 'stale_7' %}selected{% endif %}>Synced &gt;7d ago</option>
+    <option value="stale_30" {% if selected_sync_state == 'stale_30' %}selected{% endif %}>Synced &gt;30d ago</option>
+    <option value="failed" {% if selected_sync_state == 'failed' %}selected{% endif %}>Has Failed Job</option>
+  </select>
+
   <span class="htmx-indicator" style="align-self: center; font-size: 0.85rem; color: var(--accent-color);">Loading...</span>
 </form>
 

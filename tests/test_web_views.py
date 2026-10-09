@@ -1,6 +1,6 @@
 """Tests for Web UI views and templates."""
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import unittest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -19,6 +19,7 @@ from app.db.models import (
     SyncRun,
     WorkerStatus,
     DataChange,
+    utcnow,
 )
 from app.db.session import get_db
 from app.main import app
@@ -215,6 +216,59 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertEqual(resp_etf.status_code, 200)
         self.assertIn("SCHD", resp_etf.text)
         self.assertNotIn("JNJ", resp_etf.text)
+
+    def test_stocks_sync_state_filter(self):
+        # Configure last_synced_at timestamps
+        now = utcnow()
+        jnj = self.session.query(Company).filter_by(ticker="JNJ").first()
+        pfe = self.session.query(Company).filter_by(ticker="PFE").first()
+        msft = self.session.query(Company).filter_by(ticker="MSFT").first()
+        schd = self.session.query(Company).filter_by(ticker="SCHD").first()
+
+        jnj.last_synced_at = now - timedelta(days=10)
+        pfe.last_synced_at = now - timedelta(days=40)
+        msft.last_synced_at = now
+        schd.last_synced_at = None
+
+        # Add a failed job for PFE
+        failed_job = SyncJob(job_type="SYNC_COMPANY", ticker="PFE", status="FAILED")
+        self.session.add(failed_job)
+        self.session.commit()
+
+        # 1. Never synced: should include SCHD, exclude others
+        resp_never = self.client.get("/stocks/table?sync_state=never")
+        self.assertEqual(resp_never.status_code, 200)
+        self.assertIn("SCHD", resp_never.text)
+        self.assertNotIn("JNJ", resp_never.text)
+        self.assertNotIn("MSFT", resp_never.text)
+        self.assertNotIn("PFE", resp_never.text)
+
+        # 2. Stale > 7d: should include JNJ (10d) and PFE (40d), exclude MSFT (0d) and SCHD (None)
+        resp_stale7 = self.client.get("/stocks/table?sync_state=stale_7")
+        self.assertEqual(resp_stale7.status_code, 200)
+        self.assertIn("JNJ", resp_stale7.text)
+        self.assertIn("PFE", resp_stale7.text)
+        self.assertNotIn("MSFT", resp_stale7.text)
+        self.assertNotIn("SCHD", resp_stale7.text)
+
+        # 3. Stale > 30d: should include PFE (40d), exclude JNJ (10d)
+        resp_stale30 = self.client.get("/stocks/table?sync_state=stale_30")
+        self.assertEqual(resp_stale30.status_code, 200)
+        self.assertIn("PFE", resp_stale30.text)
+        self.assertNotIn("JNJ", resp_stale30.text)
+        self.assertNotIn("MSFT", resp_stale30.text)
+
+        # 4. Failed job: should include PFE, exclude JNJ/MSFT/SCHD
+        resp_failed = self.client.get("/stocks/table?sync_state=failed")
+        self.assertEqual(resp_failed.status_code, 200)
+        self.assertIn("PFE", resp_failed.text)
+        self.assertNotIn("JNJ", resp_failed.text)
+        self.assertNotIn("MSFT", resp_failed.text)
+
+        # 5. Full view retains dropdown selection
+        resp_view = self.client.get("/stocks?sync_state=stale_7")
+        self.assertEqual(resp_view.status_code, 200)
+        self.assertIn('value="stale_7" selected', resp_view.text)
 
     def test_stock_detail_view(self):
         resp = self.client.get("/stocks/JNJ")
