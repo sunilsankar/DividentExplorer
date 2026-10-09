@@ -1,0 +1,1 @@
+"""Dividend Explorer application package."""

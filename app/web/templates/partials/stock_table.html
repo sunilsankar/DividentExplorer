@@ -1,0 +1,71 @@
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Company Name</th>
+      <th>Exchange</th>
+      <th>Sector</th>
+      <th>Industry</th>
+      <th>Current Yield</th>
+      <th>Annual Dividend</th>
+      <th>Payout Ratio</th>
+      <th>Quality Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in stocks %}
+    <tr>
+      <td>
+        <strong><a href="/stocks/{{ s.ticker }}">{{ s.ticker }}</a></strong>
+        {% if s.asset_type == 'ETF' %}
+          <span class="badge badge-warning" style="font-size: 0.65rem; padding: 0.15rem 0.4rem; vertical-align: middle;">ETF</span>
+        {% endif %}
+      </td>
+      <td>{{ s.name }}</td>
+      <td><span class="badge badge-neutral">{{ s.exchange_code }}</span></td>
+      <td>{{ s.sector or '—' }}</td>
+      <td>{{ s.industry or '—' }}</td>
+      <td>
+        {% if s.metric and s.metric.current_yield is not none %}
+          <span class="badge badge-success">{{ "%.2f"|format(s.metric.current_yield) }}%</span>
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      <td>
+        {% if s.metric and s.metric.annual_dividend is not none %}
+          {{ s.currency|currency_symbol }}{{ "%.2f"|format(s.metric.annual_dividend) }}
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      <td>
+        {% if s.metric and s.metric.payout_ratio is not none %}
+          {{ "%.1f"|format(s.metric.payout_ratio * 100) }}%
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      <td>
+        {% if s.metric and s.metric.dividend_quality_score is not none %}
+          <span class="badge {% if s.metric.dividend_quality_score >= 70 %}badge-success{% elif s.metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+            {{ s.metric.dividend_quality_score }}
+          </span>
+        {% else %}
+          —
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+        No matching stocks found.
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: var(--text-muted);">
+  <div>Showing {{ stocks|length }} of {{ total_count }} companies</div>
+  <div>Page {{ page }} of {{ total_pages }}</div>
+</div>

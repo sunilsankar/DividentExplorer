@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Industries &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <h1 class="section-title">Industry Explorer</h1>
+  <span style="font-size: 0.9rem; color: var(--text-muted);">Aggregated dividend metrics across sectors</span>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Sector</th>
+      <th>Industry</th>
+      <th>Companies</th>
+      <th>Avg Yield</th>
+      <th>Median Yield</th>
+      <th>Avg Quality Score</th>
+      <th>Top Tickers</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ind in industries %}
+    <tr>
+      <td><strong>{{ ind.sector }}</strong></td>
+      <td>{{ ind.industry }}</td>
+      <td><span class="badge badge-neutral">{{ ind.company_count }}</span></td>
+      <td><span class="badge badge-success">{{ ("%.2f%%"|format(ind.avg_dividend_yield)) if ind.avg_dividend_yield is not none else '—' }}</span></td>
+      <td>{{ ("%.2f%%"|format(ind.median_dividend_yield)) if ind.median_dividend_yield is not none else '—' }}</td>
+      <td>
+        {% if ind.avg_quality_score is not none %}
+        <span class="badge {% if ind.avg_quality_score >= 70 %}badge-success{% elif ind.avg_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ "%.1f"|format(ind.avg_quality_score) }}
+        </span>
+        {% else %}
+        —
+        {% endif %}
+      </td>
+      <td>
+        {% for t in ind.top_tickers %}
+          <a href="/stocks/{{ t }}" style="margin-right: 0.35rem;"><strong>{{ t }}</strong></a>
+        {% endfor %}
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+        No industry data available yet.
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

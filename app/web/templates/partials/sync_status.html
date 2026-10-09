@@ -1,0 +1,138 @@
+<div id="sync-status-container" hx-get="/sync/status" hx-trigger="every 5s" hx-swap="outerHTML">
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">Pending Jobs</div>
+      <div class="card-value">{{ overview.pending_jobs }}</div>
+      <div class="card-subtext">Waiting in queue</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Running Jobs</div>
+      <div class="card-value" style="color: var(--warning-color);">{{ overview.running_jobs }}</div>
+      <div class="card-subtext">Actively processing</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Failed / Retry Jobs</div>
+      <div class="card-value" style="color: var(--danger-color);">{{ overview.failed_jobs }}</div>
+      <div class="card-subtext">Max retries reached</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Active Workers</div>
+      <div class="card-value" style="color: var(--success-color);">{{ overview.active_workers }}</div>
+      <div class="card-subtext">Heartbeat &lt; 2 minutes</div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <h2 class="section-title">Worker Heartbeats</h2>
+    <span style="font-size: 0.85rem; color: var(--text-muted);">Auto-refreshes every 5s</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Worker ID</th>
+        <th>Host / PID</th>
+        <th>Status</th>
+        <th>Last Heartbeat</th>
+        <th>Current Job</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for w in workers %}
+      <tr>
+        <td><strong>{{ w.worker_id }}</strong></td>
+        <td>{{ w.hostname }}:{{ w.pid }}</td>
+        <td>
+          <span class="badge {% if w.status == 'alive' %}badge-success{% else %}badge-neutral{% endif %}">
+            {{ w.status }}
+          </span>
+        </td>
+        <td>{{ w.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S') if w.last_heartbeat else '—' }}</td>
+        <td>{{ w.current_job_id or 'Idle' }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" style="text-align: center; color: var(--text-muted);">No workers active. Start worker with: <code>python -m app.sync.worker</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="section-header">
+    <h2 class="section-title">Recent Sync Runs</h2>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Run ID</th>
+        <th>Type</th>
+        <th>Status</th>
+        <th>Processed</th>
+        <th>Failed</th>
+        <th>Started At</th>
+        <th>Finished At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in recent_runs %}
+      <tr>
+        <td>#{{ r.id }}</td>
+        <td><span class="badge badge-neutral">{{ r.run_type }}</span></td>
+        <td>
+          <span class="badge {% if r.status == 'completed' %}badge-success{% elif r.status == 'running' %}badge-warning{% elif r.status == 'failed' %}badge-danger{% else %}badge-neutral{% endif %}">
+            {{ r.status }}
+          </span>
+        </td>
+        <td>{{ r.items_processed }}</td>
+        <td>{{ r.items_failed }}</td>
+        <td>{{ r.started_at.strftime('%H:%M:%S') if r.started_at else '—' }}</td>
+        <td>{{ r.finished_at.strftime('%H:%M:%S') if r.finished_at else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" style="text-align: center; color: var(--text-muted);">No sync runs recorded yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="section-header">
+    <h2 class="section-title">Queue Activity</h2>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Job ID</th>
+        <th>Type</th>
+        <th>Target Ticker</th>
+        <th>Status</th>
+        <th>Attempts</th>
+        <th>Priority</th>
+        <th>Scheduled For</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for j in queue_jobs %}
+      <tr>
+        <td>#{{ j.id }}</td>
+        <td>{{ j.job_type }}</td>
+        <td><strong>{{ j.ticker or '—' }}</strong></td>
+        <td>
+          <span class="badge {% if j.status == 'completed' %}badge-success{% elif j.status == 'running' %}badge-warning{% elif j.status == 'failed' %}badge-danger{% else %}badge-neutral{% endif %}">
+            {{ j.status }}
+          </span>
+        </td>
+        <td>{{ j.attempts }} / {{ j.max_attempts }}</td>
+        <td>{{ j.priority }}</td>
+        <td>{{ j.scheduled_for.strftime('%H:%M:%S') if j.scheduled_for else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" style="text-align: center; color: var(--text-muted);">Queue is empty.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Competitor Comparison &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <h1 class="section-title">Competitor &amp; Peer Comparison</h1>
+</div>
+
+<form method="get" action="/competitors" class="form-group">
+  <input type="text" name="ticker" value="{{ target_ticker or '' }}" placeholder="Enter ticker (e.g. AAPL, MSFT, JNJ)..." style="min-width: 250px;">
+  <button type="submit">Compare Peers</button>
+</form>
+
+{% if comparison %}
+<div class="card" style="margin-bottom: 1.5rem;">
+  <h3>Comparing {{ comparison.target.ticker }} against peers in {{ comparison.industry }}</h3>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Metric</th>
+      <th style="background-color: rgba(56, 189, 248, 0.1); border-left: 2px solid var(--accent-color);">
+        <strong>{{ comparison.target.ticker }} (Target)</strong><br>
+        <small style="color: var(--text-muted);">{{ comparison.target.name }}</small>
+      </th>
+      {% for peer in comparison.peers %}
+      <th>
+        <strong><a href="/stocks/{{ peer.ticker }}">{{ peer.ticker }}</a></strong><br>
+        <small style="color: var(--text-muted);">{{ peer.name }}</small>
+      </th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Current Yield</strong></td>
+      <td style="background-color: rgba(56, 189, 248, 0.05);">
+        {% if comparison.target.current_yield is not none %}
+          <span class="badge badge-success">{{ "%.2f"|format(comparison.target.current_yield) }}%</span>
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      {% for peer in comparison.peers %}
+      <td>{{ ("%.2f%%"|format(peer.current_yield)) if peer.current_yield is not none else '—' }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td><strong>Quality Score</strong></td>
+      <td style="background-color: rgba(56, 189, 248, 0.05);">
+        <span class="badge {% if comparison.target.dividend_quality_score and comparison.target.dividend_quality_score >= 70 %}badge-success{% elif comparison.target.dividend_quality_score and comparison.target.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ comparison.target.dividend_quality_score if comparison.target.dividend_quality_score is not none else 'N/A' }}
+        </span>
+      </td>
+      {% for peer in comparison.peers %}
+      <td>
+        <span class="badge {% if peer.dividend_quality_score and peer.dividend_quality_score >= 70 %}badge-success{% elif peer.dividend_quality_score and peer.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ peer.dividend_quality_score if peer.dividend_quality_score is not none else 'N/A' }}
+        </span>
+      </td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td><strong>Payout Ratio</strong></td>
+      <td style="background-color: rgba(56, 189, 248, 0.05);">
+        {{ ("%.1f%%"|format(comparison.target.payout_ratio * 100)) if comparison.target.payout_ratio is not none else '—' }}
+      </td>
+      {% for peer in comparison.peers %}
+      <td>{{ ("%.1f%%"|format(peer.payout_ratio * 100)) if peer.payout_ratio is not none else '—' }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td><strong>Trailing P/E</strong></td>
+      <td style="background-color: rgba(56, 189, 248, 0.05);">
+        {{ "%.1f"|format(comparison.target.trailing_pe) if comparison.target.trailing_pe else '—' }}
+      </td>
+      {% for peer in comparison.peers %}
+      <td>{{ "%.1f"|format(peer.trailing_pe) if peer.trailing_pe else '—' }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td><strong>Price to Book</strong></td>
+      <td style="background-color: rgba(56, 189, 248, 0.05);">
+        {{ "%.2f"|format(comparison.target.price_to_book) if comparison.target.price_to_book else '—' }}
+      </td>
+      {% for peer in comparison.peers %}
+      <td>{{ "%.2f"|format(peer.price_to_book) if peer.price_to_book else '—' }}</td>
+      {% endfor %}
+    </tr>
+  </tbody>
+</table>
+{% elif target_ticker %}
+<div class="card" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+  No peer data available for ticker "{{ target_ticker }}".
+</div>
+{% else %}
+<div class="card" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+  Enter a stock ticker above to view an industry peer comparison.
+</div>
+{% endif %}
+{% endblock %}

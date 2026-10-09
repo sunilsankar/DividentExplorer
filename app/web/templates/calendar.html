@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Dividend Calendar &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <h1 class="section-title">Dividend Calendar</h1>
+  <span style="font-size: 0.9rem; color: var(--text-muted);">Ex-dividend dates and scheduled payments</span>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ex-Dividend Date</th>
+      <th>Ticker</th>
+      <th>Company Name</th>
+      <th>Dividend Amount</th>
+      <th>Payment Date</th>
+      <th>Record Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ev in events %}
+    <tr>
+      <td><strong>{{ ev.ex_date.strftime('%Y-%m-%d') }}</strong></td>
+      <td><strong><a href="/stocks/{{ ev.ticker }}">{{ ev.ticker }}</a></strong></td>
+      <td>{{ ev.company_name }}</td>
+      <td><span class="badge badge-success">{{ ev.currency|currency_symbol }}{{ "%.4f"|format(ev.amount) }}</span></td>
+      <td>{{ ev.payment_date.strftime('%Y-%m-%d') if ev.payment_date else '—' }}</td>
+      <td>{{ ev.record_date.strftime('%Y-%m-%d') if ev.record_date else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+        No dividend events recorded in this calendar window.
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

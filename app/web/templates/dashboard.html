@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <h1 class="section-title">Market Overview</h1>
+  <form action="/stocks" method="get" style="display: flex; gap: 0.5rem;">
+    <input type="text" name="q" placeholder="Search ticker or company..." style="width: 250px;">
+    <button type="submit">Search</button>
+  </form>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-title">Tracked Companies</div>
+    <div class="card-value">{{ total_companies }}</div>
+    <div class="card-subtext">Across active exchanges</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Average Dividend Yield</div>
+    <div class="card-value">{{ "%.2f"|format(avg_yield) }}%</div>
+    <div class="card-subtext">Portfolio universe average</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Active Sync Queue</div>
+    <div class="card-value">{{ queue_pending_jobs }}</div>
+    <div class="card-subtext">Pending / running sync jobs</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Dividend Quality Leaders</div>
+    <div class="card-value">{{ quality_leaders|length }}</div>
+    <div class="card-subtext">Score &ge; 70</div>
+  </div>
+</div>
+
+<div class="section-header">
+  <h2 class="section-title">Top Dividend Yields</h2>
+  <a href="/stocks?sort=yield">View all stocks &rarr;</a>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Company</th>
+      <th>Sector</th>
+      <th>Current Yield</th>
+      <th>Annual Dividend</th>
+      <th>Quality Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in top_yields %}
+    <tr>
+      <td><strong><a href="/stocks/{{ item.ticker }}">{{ item.ticker }}</a></strong></td>
+      <td>{{ item.company_name }}</td>
+      <td>{{ item.sector or '—' }}</td>
+      <td><span class="badge badge-success">{{ "%.2f"|format(item.current_yield) }}%</span></td>
+      <td>{% if item.annual_dividend is not none %}{{ item.currency|currency_symbol }}{{ "%.2f"|format(item.annual_dividend) }}{% else %}—{% endif %}</td>
+      <td>
+        <span class="badge {% if item.dividend_quality_score and item.dividend_quality_score >= 70 %}badge-success{% elif item.dividend_quality_score and item.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ item.dividend_quality_score if item.dividend_quality_score is not none else 'N/A' }}
+        </span>
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="6" style="text-align: center; color: var(--text-muted);">No yield data available. Run sync to ingest companies.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="section-header">
+  <h2 class="section-title">Dividend Quality Leaders</h2>
+  <a href="/analytics">View analytics &rarr;</a>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Company</th>
+      <th>Quality Score</th>
+      <th>Years Growing</th>
+      <th>Payout Ratio</th>
+      <th>Current Yield</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in quality_leaders %}
+    <tr>
+      <td><strong><a href="/stocks/{{ item.ticker }}">{{ item.ticker }}</a></strong></td>
+      <td>{{ item.company_name }}</td>
+      <td><span class="badge badge-success">{{ item.dividend_quality_score }} / 100</span></td>
+      <td>{{ item.years_growing if item.years_growing is not none else 0 }} yrs</td>
+      <td>{{ ("%.1f%%"|format(item.payout_ratio * 100)) if item.payout_ratio is not none else '—' }}</td>
+      <td>{{ ("%.2f%%"|format(item.current_yield)) if item.current_yield is not none else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="6" style="text-align: center; color: var(--text-muted);">No quality leader data available yet.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="section-header">
+  <h2 class="section-title">Recent Dividend &amp; Yield Changes</h2>
+  <a href="/changes">View audit log &rarr;</a>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Change Type</th>
+      <th>Old Value</th>
+      <th>New Value</th>
+      <th>Detected At</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for change in recent_changes %}
+    <tr>
+      <td><strong><a href="/stocks/{{ change.ticker }}">{{ change.ticker }}</a></strong></td>
+      <td>
+        <span class="badge {% if 'increase' in change.change_type %}badge-success{% elif 'cut' in change.change_type %}badge-danger{% else %}badge-neutral{% endif %}">
+          {{ change.change_type }}
+        </span>
+      </td>
+      <td>{{ change.old_value or '—' }}</td>
+      <td>{{ change.new_value or '—' }}</td>
+      <td>{{ change.detected_at.strftime('%Y-%m-%d %H:%M') if change.detected_at else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="5" style="text-align: center; color: var(--text-muted);">No significant changes detected recently.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

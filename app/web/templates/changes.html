@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Change Detection Audit &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div>
+    <h1 class="section-title">Data Change Detection</h1>
+    <p style="color: var(--text-secondary); margin-top: 0.25rem;">
+      Audit log of material dividend changes, dividend cuts, dividend increases, and yield shifts.
+    </p>
+  </div>
+</div>
+
+<form method="get" action="/changes" class="form-group">
+  <select name="change_type" onchange="this.form.submit()">
+    <option value="">All Change Types</option>
+    <option value="dividend_increase" {% if selected_type == 'dividend_increase' %}selected{% endif %}>Dividend Increase</option>
+    <option value="dividend_cut" {% if selected_type == 'dividend_cut' %}selected{% endif %}>Dividend Cut</option>
+    <option value="yield_shift" {% if selected_type == 'yield_shift' %}selected{% endif %}>Yield Shift</option>
+  </select>
+</form>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Change Type</th>
+      <th>Previous Value</th>
+      <th>New Value</th>
+      <th>Detected At</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ch in changes %}
+    <tr>
+      <td><strong><a href="/stocks/{{ ch.ticker }}">{{ ch.ticker }}</a></strong></td>
+      <td>
+        <span class="badge {% if 'increase' in ch.change_type %}badge-success{% elif 'cut' in ch.change_type %}badge-danger{% elif 'shift' in ch.change_type %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ ch.change_type }}
+        </span>
+      </td>
+      <td>{{ ch.old_value or '—' }}</td>
+      <td><strong>{{ ch.new_value or '—' }}</strong></td>
+      <td>{{ ch.detected_at.strftime('%Y-%m-%d %H:%M:%S') if ch.detected_at else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+        No change events recorded yet.
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

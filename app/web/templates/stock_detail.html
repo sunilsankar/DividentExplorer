@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+
+{% block title %}{{ company.ticker }} &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div>
+    <h1 class="section-title" style="display: flex; align-items: center; gap: 0.75rem;">
+      {{ company.ticker }}
+      <span class="badge badge-neutral">{{ company.exchange_code }}</span>
+      {% if company.asset_type == 'ETF' %}
+        <span class="badge badge-warning">ETF</span>
+      {% endif %}
+      {% if company.is_active %}
+        <span class="badge badge-success">Active</span>
+      {% else %}
+        <span class="badge badge-danger">Inactive</span>
+      {% endif %}
+    </h1>
+    <p style="color: var(--text-secondary); margin-top: 0.25rem;">
+      {{ company.name }} &bull; {{ company.sector or 'Unclassified' }} &bull; {{ company.industry or 'Unclassified' }}
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.5rem; align-items: center;">
+    <form hx-post="/sync/trigger" hx-swap="none" style="margin: 0;">
+      <input type="hidden" name="ticker" value="{{ company.ticker }}">
+      <button type="submit" class="button-secondary">Sync {{ company.ticker }}</button>
+    </form>
+    <a href="/competitors?ticker={{ company.ticker }}">
+      <button type="button">Compare Peers &rarr;</button>
+    </a>
+  </div>
+</div>
+
+{% if company.description %}
+<div class="card" style="margin-bottom: 1.5rem; font-size: 0.9rem; color: var(--text-secondary);">
+  {{ company.description }}
+</div>
+{% endif %}
+
+<div class="grid">
+  <div class="card">
+    <div class="card-title">Current Dividend Yield</div>
+    <div class="card-value">
+      {% if metric and metric.current_yield is not none %}
+        {{ "%.2f"|format(metric.current_yield) }}%
+      {% else %}
+        —
+      {% endif %}
+    </div>
+    <div class="card-subtext">Trailing: {{ "%.2f"|format(metric.trailing_annual_dividend_yield) if metric and metric.trailing_annual_dividend_yield is not none else '—' }}%</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Annual Dividend</div>
+    <div class="card-value">
+      {% if metric and metric.annual_dividend is not none %}
+        {{ company.currency|currency_symbol }}{{ "%.2f"|format(metric.annual_dividend) }}
+      {% else %}
+        —
+      {% endif %}
+    </div>
+    <div class="card-subtext">Frequency: {{ metric.payment_frequency or 'Quarterly' if metric else '—' }}</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Payout Ratio</div>
+    <div class="card-value">
+      {% if metric and metric.payout_ratio is not none %}
+        {{ "%.1f"|format(metric.payout_ratio * 100) }}%
+      {% else %}
+        —
+      {% endif %}
+    </div>
+    <div class="card-subtext">FCF Coverage: {{ "%.1fx"|format(metric.free_cash_flow_coverage) if metric and metric.free_cash_flow_coverage is not none else '—' }}</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Dividend Growth (3Y CAGR)</div>
+    <div class="card-value">
+      {% if metric and metric.dividend_growth_3y is not none %}
+        {{ "%.1f"|format(metric.dividend_growth_3y) }}%
+      {% else %}
+        —
+      {% endif %}
+    </div>
+    <div class="card-subtext">Growing {{ metric.years_growing or 0 if metric else 0 }} yrs &bull; Paying {{ metric.years_paying or 0 if metric else 0 }} yrs</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Dividend Quality Score</div>
+    <div class="card-value">
+      {% if metric and metric.dividend_quality_score is not none %}
+        <span class="badge {% if metric.dividend_quality_score >= 70 %}badge-success{% elif metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" style="font-size: 1.5rem; padding: 0.2rem 0.6rem;">
+          {{ metric.dividend_quality_score }} / 100
+        </span>
+      {% else %}
+        —
+      {% endif %}
+    </div>
+    <div class="card-subtext">Calculated locally</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Latest Stock Price</div>
+    <div class="card-value">
+      {% if latest_price and latest_price.close_price is not none %}
+        {{ company.currency|currency_symbol }}{{ "%.2f"|format(latest_price.close_price) }}
+      {% else %}
+        —
+      {% endif %}
+    </div>
+    <div class="card-subtext">Date: {{ latest_price.price_date.strftime('%Y-%m-%d') if latest_price else '—' }}</div>
+  </div>
+</div>
+
+<div class="section-header">
+  <h2 class="section-title">Dividend History</h2>
+  <span style="font-size: 0.85rem; color: var(--text-muted);">{{ dividends|length }} historical payments</span>
+</div>
+
+{% if dividends %}
+<div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+  <canvas id="dividendChart" style="max-height: 220px;"></canvas>
+</div>
+{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th>Ex-Dividend Date</th>
+      <th>Cash Amount</th>
+      <th>Record Date</th>
+      <th>Pay Date</th>
+      <th>Declaration Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for div in dividends %}
+    <tr>
+      <td><strong>{{ div.ex_date.strftime('%Y-%m-%d') }}</strong></td>
+      <td><span class="badge badge-success">{{ (div.currency or company.currency)|currency_symbol }}{{ "%.4f"|format(div.amount) }}</span></td>
+      <td>{{ div.record_date.strftime('%Y-%m-%d') if div.record_date else '—' }}</td>
+      <td>{{ div.payment_date.strftime('%Y-%m-%d') if div.payment_date else '—' }}</td>
+      <td>{{ div.declaration_date.strftime('%Y-%m-%d') if div.declaration_date else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="5" style="text-align: center; color: var(--text-muted);">No dividend history recorded.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="section-header">
+  <h2 class="section-title">Recent Price History</h2>
+</div>
+
+{% if prices %}
+<div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+  <canvas id="priceChart" style="max-height: 220px;"></canvas>
+</div>
+{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Open</th>
+      <th>High</th>
+      <th>Low</th>
+      <th>Close</th>
+      <th>Volume</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in prices[:15] %}
+    <tr>
+      <td>{{ p.price_date.strftime('%Y-%m-%d') }}</td>
+      <td>{% if p.open_price is not none %}{{ company.currency|currency_symbol }}{{ "%.2f"|format(p.open_price) }}{% else %}—{% endif %}</td>
+      <td>{% if p.high_price is not none %}{{ company.currency|currency_symbol }}{{ "%.2f"|format(p.high_price) }}{% else %}—{% endif %}</td>
+      <td>{% if p.low_price is not none %}{{ company.currency|currency_symbol }}{{ "%.2f"|format(p.low_price) }}{% else %}—{% endif %}</td>
+      <td><strong>{% if p.close_price is not none %}{{ company.currency|currency_symbol }}{{ "%.2f"|format(p.close_price) }}{% else %}—{% endif %}</strong></td>
+      <td>{{ "{:,}".format(p.volume) if p.volume is not none else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="6" style="text-align: center; color: var(--text-muted);">No price history recorded.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if financial %}
+<div class="section-header">
+  <h2 class="section-title">Fundamental &amp; Valuation Metrics</h2>
+  <span style="font-size: 0.85rem; color: var(--text-muted);">As of {{ financial.as_of_date.strftime('%Y-%m-%d') if financial.as_of_date else 'latest sync' }}</span>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-title">Market Cap</div>
+    <div class="card-value" style="font-size: 1.25rem;">
+      {% if financial.market_cap %}
+        {{ company.currency|currency_symbol }}{{ "{:,.0f}".format(financial.market_cap) }}
+      {% else %}
+        —
+      {% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Trailing P/E</div>
+    <div class="card-value" style="font-size: 1.25rem;">{{ "%.1f"|format(financial.trailing_pe) if financial.trailing_pe else '—' }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Forward P/E</div>
+    <div class="card-value" style="font-size: 1.25rem;">{{ "%.1f"|format(financial.forward_pe) if financial.forward_pe else '—' }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Price to Book</div>
+    <div class="card-value" style="font-size: 1.25rem;">{{ "%.2f"|format(financial.price_to_book) if financial.price_to_book else '—' }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Operating Cash Flow</div>
+    <div class="card-value" style="font-size: 1.25rem;">
+      {% if financial.operating_cash_flow %}
+        {{ company.currency|currency_symbol }}{{ "{:,.0f}".format(financial.operating_cash_flow) }}
+      {% else %}
+        —
+      {% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Free Cash Flow</div>
+    <div class="card-value" style="font-size: 1.25rem;">
+      {% if financial.free_cash_flow %}
+        {{ company.currency|currency_symbol }}{{ "{:,.0f}".format(financial.free_cash_flow) }}
+      {% else %}
+        —
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if peers %}
+<div class="section-header">
+  <h2 class="section-title">Industry Peers ({{ company.industry }})</h2>
+  <a href="/competitors?ticker={{ company.ticker }}">Full comparison &rarr;</a>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Company</th>
+      <th>Current Yield</th>
+      <th>Quality Score</th>
+      <th>Payout Ratio</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for peer in peers %}
+    <tr>
+      <td><strong><a href="/stocks/{{ peer.ticker }}">{{ peer.ticker }}</a></strong></td>
+      <td>{{ peer.name }}</td>
+      <td>{{ ("%.2f%%"|format(peer.current_yield)) if peer.current_yield is not none else '—' }}</td>
+      <td>
+        <span class="badge {% if peer.dividend_quality_score and peer.dividend_quality_score >= 70 %}badge-success{% elif peer.dividend_quality_score and peer.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ peer.dividend_quality_score if peer.dividend_quality_score is not none else 'N/A' }}
+        </span>
+      </td>
+      <td>{{ ("%.1f%%"|format(peer.payout_ratio * 100)) if peer.payout_ratio is not none else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<script>
+  // ponytail: inline Chart.js initializers; ceiling is basic client-side render, upgrade to bundled charting module if interactive indicators/overlays needed
+  {% if dividends %}
+  (function() {
+    const ctx = document.getElementById('dividendChart');
+    if (ctx && typeof Chart !== 'undefined') {
+      const labels = [{% for d in dividends|reverse %}'{{ d.ex_date.strftime("%Y-%m-%d") }}',{% endfor %}];
+      const data = [{% for d in dividends|reverse %}{{ d.amount }},{% endfor %}];
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Dividend Payout ({{ company.currency|currency_symbol }})',
+            data: data,
+            backgroundColor: 'rgba(56, 189, 248, 0.7)',
+            borderColor: 'rgb(56, 189, 248)',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+  })();
+  {% endif %}
+
+  {% if prices %}
+  (function() {
+    const ctx = document.getElementById('priceChart');
+    if (ctx && typeof Chart !== 'undefined') {
+      const labels = [{% for p in prices[:30]|reverse %}'{{ p.price_date.strftime("%Y-%m-%d") }}',{% endfor %}];
+      const data = [{% for p in prices[:30]|reverse %}{{ p.close_price or 0 }},{% endfor %}];
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Closing Price ({{ company.currency|currency_symbol }})',
+            data: data,
+            borderColor: 'rgb(52, 211, 153)',
+            backgroundColor: 'rgba(52, 211, 153, 0.1)',
+            fill: true,
+            tension: 0.2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { grid: { color: 'rgba(255,255,255,0.05)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+  })();
+  {% endif %}
+</script>
+
+{% endblock %}

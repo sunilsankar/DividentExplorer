@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Stocks &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <h1 class="section-title">Stock Explorer</h1>
+</div>
+
+<form class="form-group" hx-get="/stocks/table" hx-target="#stock-table-container" hx-trigger="change, keyup changed delay:300ms from:#q">
+  <input type="text" id="q" name="q" value="{{ query or '' }}" placeholder="Search ticker or name..." style="min-width: 280px;">
+  
+  <select name="asset_type">
+    <option value="">All Types (Stocks &amp; ETFs)</option>
+    <option value="STOCK" {% if selected_asset_type == 'STOCK' %}selected{% endif %}>Stocks Only</option>
+    <option value="ETF" {% if selected_asset_type == 'ETF' %}selected{% endif %}>ETFs Only</option>
+  </select>
+
+  <select name="sector">
+    <option value="">All Sectors</option>
+    {% for sec in sectors %}
+    <option value="{{ sec }}" {% if selected_sector == sec %}selected{% endif %}>{{ sec }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="sort">
+    <option value="ticker" {% if sort == 'ticker' %}selected{% endif %}>Sort by Ticker</option>
+    <option value="yield" {% if sort == 'yield' %}selected{% endif %}>Sort by Current Yield (High &rarr; Low)</option>
+    <option value="quality" {% if sort == 'quality' %}selected{% endif %}>Sort by Quality Score (High &rarr; Low)</option>
+    <option value="growth" {% if sort == 'growth' %}selected{% endif %}>Sort by Dividend Growth</option>
+  </select>
+
+  <span class="htmx-indicator" style="align-self: center; font-size: 0.85rem; color: var(--accent-color);">Loading...</span>
+</form>
+
+<div id="stock-table-container">
+  {% include "partials/stock_table.html" %}
+</div>
+{% endblock %}

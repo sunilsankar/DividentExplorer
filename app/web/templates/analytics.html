@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <h1 class="section-title">Dividend Analytics &amp; Rankings</h1>
+</div>
+
+<div class="section-header">
+  <h2 class="section-title">Dividend Quality Leaders (Score &ge; 70)</h2>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Company</th>
+      <th>Quality Score</th>
+      <th>Years Growing</th>
+      <th>Years Paying</th>
+      <th>Payout Ratio</th>
+      <th>Current Yield</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in quality_leaders %}
+    <tr>
+      <td><strong><a href="/stocks/{{ item.ticker }}">{{ item.ticker }}</a></strong></td>
+      <td>{{ item.company_name }}</td>
+      <td><span class="badge badge-success">{{ item.dividend_quality_score }} / 100</span></td>
+      <td>{{ item.years_growing if item.years_growing is not none else 0 }} yrs</td>
+      <td>{{ item.years_paying if item.years_paying is not none else 0 }} yrs</td>
+      <td>{{ ("%.1f%%"|format(item.payout_ratio * 100)) if item.payout_ratio is not none else '—' }}</td>
+      <td>{{ ("%.2f%%"|format(item.current_yield)) if item.current_yield is not none else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="7" style="text-align: center; color: var(--text-muted);">No quality leader data available.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="section-header">
+  <h2 class="section-title">Dividend Growth Leaders (3Y CAGR)</h2>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Company</th>
+      <th>3Y CAGR</th>
+      <th>1Y CAGR</th>
+      <th>Current Yield</th>
+      <th>Quality Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in growth_leaders %}
+    <tr>
+      <td><strong><a href="/stocks/{{ item.ticker }}">{{ item.ticker }}</a></strong></td>
+      <td>{{ item.company_name }}</td>
+      <td><span class="badge badge-success">+{{ "%.1f"|format(item.growth_rate_3y or 0.0) }}%</span></td>
+      <td>{{ ("+%.1f%%"|format(item.growth_rate_1y)) if item.growth_rate_1y is not none else '—' }}</td>
+      <td>{{ ("%.2f%%"|format(item.current_yield)) if item.current_yield is not none else '—' }}</td>
+      <td>
+        <span class="badge {% if item.dividend_quality_score and item.dividend_quality_score >= 70 %}badge-success{% elif item.dividend_quality_score and item.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ item.dividend_quality_score if item.dividend_quality_score is not none else 'N/A' }}
+        </span>
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="6" style="text-align: center; color: var(--text-muted);">No growth leader data available.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Dividend Explorer{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <a href="/" class="brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"></line>
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+      </svg>
+      Dividend Explorer
+    </a>
+    <nav>
+      <a href="/" class="{% if active_tab == 'dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="/stocks" class="{% if active_tab == 'stocks' %}active{% endif %}">Stocks</a>
+      <a href="/industries" class="{% if active_tab == 'industries' %}active{% endif %}">Industries</a>
+      <a href="/competitors" class="{% if active_tab == 'competitors' %}active{% endif %}">Competitors</a>
+      <a href="/calendar" class="{% if active_tab == 'calendar' %}active{% endif %}">Calendar</a>
+      <a href="/analytics" class="{% if active_tab == 'analytics' %}active{% endif %}">Analytics</a>
+      <a href="/sync" class="{% if active_tab == 'sync' %}active{% endif %}">Sync Status</a>
+      <a href="/changes" class="{% if active_tab == 'changes' %}active{% endif %}">Changes</a>
+    </nav>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <p>Dividend Explorer &bull; SQLite Operational Source of Truth &bull; Yahoo Ingestion Only</p>
+  </footer>
+</body>
+</html>
