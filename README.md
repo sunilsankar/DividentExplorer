@@ -232,7 +232,7 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/dividend-explorer
 EnvironmentFile=/opt/dividend-explorer/.env
-ExecStart=/opt/dividend-explorer/.venv/bin/python -m app.sync.worker
+ExecStart=/opt/dividend-explorer/.venv/bin/python -u -m app.sync.worker
 Restart=always
 RestartSec=5
 
