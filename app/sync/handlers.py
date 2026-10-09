@@ -1,7 +1,10 @@
+import logging
 from datetime import date, timedelta
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("dividend_sync_worker")
 
 from app.analytics.calculations import calculate_dividend_metrics
 from app.db.models import Company, DividendMetric, Exchange, SyncJob
@@ -143,6 +146,7 @@ def handle_sync_exchange(
 
     discovered = yahoo.discover_tickers(exchange_code)
     comp_repo = CompanyRepository(session)
+    logger.info("Exchange %s discovered %d securities: %s", exchange_code, len(discovered), ", ".join(t.ticker for t in discovered))
 
     enqueued_count = 0
     for item in discovered:

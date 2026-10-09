@@ -79,7 +79,15 @@ class SyncService:
             .first()
         )
         if not root_job:
-            return {"status": "IDLE", "percent": 0.0, "total": 0, "completed": 0, "failed": 0, "pending": 0}
+            return {
+                "status": "IDLE",
+                "percent": 0.0,
+                "total": 0,
+                "completed": 0,
+                "failed": 0,
+                "pending": 0,
+                "last_synced_at": None,
+            }
 
         status_counts = dict(
             self.session.execute(
@@ -98,15 +106,26 @@ class SyncService:
         else:
             percent = round(((completed + failed) / total) * 100, 1)
 
-        is_running = root_job.status in ("PENDING", "RUNNING") or pending > 0
+        if root_job.status == "PENDING" and total == 0:
+            job_status = "PENDING"
+        elif root_job.status in ("PENDING", "RUNNING") or pending > 0:
+            job_status = "RUNNING"
+        elif root_job.status == "FAILED" or (failed > 0 and completed == 0):
+            job_status = "FAILED"
+        else:
+            job_status = "COMPLETED"
+
+        last_synced_at = root_job.updated_at if root_job.status == "COMPLETED" else None
+
         return {
             "root_job_id": root_job.id,
-            "status": "RUNNING" if is_running else ("FAILED" if failed > 0 and completed == 0 else "COMPLETED"),
+            "status": job_status,
             "percent": percent,
             "total": total,
             "completed": completed,
             "failed": failed,
             "pending": pending,
+            "last_synced_at": last_synced_at,
         }
 
     # Aliases for convenience

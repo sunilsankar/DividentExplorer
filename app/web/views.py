@@ -347,6 +347,16 @@ def retry_failed_sync(request: Request, db: Session = Depends(get_db)):
     return sync_status_partial(request=request, db=db)
 
 
+@router.post("/sync/trigger-all-exchanges", response_class=HTMLResponse)
+def trigger_all_exchanges(request: Request, db: Session = Depends(get_db)):
+    repo = ExchangeRepository(db)
+    sync_service = SyncService(db)
+    for ex in repo.list_all(active_only=True):
+        sync_service.enqueue_exchange_sync(ex.code)
+    db.commit()
+    return exchange_sync_view(request=request, db=db)
+
+
 @router.get("/sync/exchanges", response_class=HTMLResponse)
 def exchange_sync_view(request: Request, db: Session = Depends(get_db)):
     repo = ExchangeRepository(db)
@@ -365,7 +375,7 @@ def exchange_sync_view(request: Request, db: Session = Depends(get_db)):
                 "country": ex.country,
                 "currency": ex.currency,
                 "is_active": ex.is_active,
-                "last_synced_at": ex.last_synced_at,
+                "last_synced_at": progress.get("last_synced_at") or ex.last_synced_at,
                 "companies_count": len(companies),
                 "progress": progress,
             }

@@ -38,7 +38,8 @@ class Exchange(Base):
 
     @property
     def last_synced_at(self) -> Optional[datetime]:
-        return self.updated_at
+        # ponytail: dynamic lookup via sync jobs or None; avoid fake updated_at timestamps
+        return None
 
 
 

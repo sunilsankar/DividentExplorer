@@ -283,11 +283,19 @@ class WebViewsTestCase(unittest.TestCase):
         resp = self.client.get("/sync/exchanges")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("Exchange Synchronization", resp.text)
+        self.assertIn("Sync All Exchanges", resp.text)
         self.assertIn("NYSE", resp.text)
         self.assertIn("NASDAQ", resp.text)
         self.assertIn("AMS", resp.text)
         self.assertIn("EUR", resp.text)
         self.assertIn("Sync Progress", resp.text)
+
+    def test_trigger_all_exchanges(self):
+        resp = self.client.post("/sync/trigger-all-exchanges")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Exchange Synchronization", resp.text)
+        jobs = self.session.query(SyncJob).filter_by(job_type="SYNC_EXCHANGE").all()
+        self.assertGreaterEqual(len(jobs), 3)
 
     def test_changes_view(self):
         resp = self.client.get("/changes")
