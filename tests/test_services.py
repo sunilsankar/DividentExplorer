@@ -95,6 +95,18 @@ class ServicesTestCase(unittest.TestCase):
         self.assertEqual(progress["completed"], 1)
         self.assertEqual(progress["percent"], 50.0)
 
+    def test_get_stuck_running_count_and_all_exchange_progress(self):
+        ExchangeRepository(self.session).upsert(code="AMS", name="Euronext Amsterdam")
+        self.session.commit()
+
+        # Test get_all_exchange_progress returns list with AMS
+        all_ex = self.sync_service.get_all_exchange_progress()
+        self.assertTrue(any(e["code"] == "AMS" for e in all_ex))
+
+        # Test get_stuck_running_count
+        count_zero = self.sync_service.get_stuck_running_count(threshold_seconds=300)
+        self.assertEqual(count_zero, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

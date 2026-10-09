@@ -264,13 +264,26 @@ class WebViewsTestCase(unittest.TestCase):
         resp = self.client.get("/sync")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("Ingestion &amp; Sync Dashboard", resp.text)
-        self.assertIn("test-worker-1", resp.text)
-        self.assertIn("MSFT", resp.text)
+        self.assertIn("Active Backlog", resp.text)
+        self.assertIn("Recent History", resp.text)
 
     def test_sync_status_partial(self):
-        resp = self.client.get("/sync/status")
+        resp = self.client.get("/sync/status?tab=now")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("test-worker-1", resp.text)
+        self.assertIn("Active Backlog", resp.text)
+
+        resp_recent = self.client.get("/sync/status?tab=recent")
+        self.assertEqual(resp_recent.status_code, 200)
+        self.assertIn("Recent History", resp_recent.text)
+
+    def test_reap_stuck_and_retry_throttled(self):
+        resp = self.client.post("/sync/reap-stuck")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("sync-status-container", resp.text)
+
+        resp2 = self.client.post("/sync/retry-throttled")
+        self.assertEqual(resp2.status_code, 200)
+        self.assertIn("sync-status-container", resp2.text)
 
     def test_trigger_sync(self):
         resp = self.client.post("/sync/trigger", data={"ticker": "AAPL"})

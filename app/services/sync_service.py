@@ -1,9 +1,10 @@
+from datetime import timedelta
 from typing import Any, Dict, Optional, Sequence
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import DataChange, SyncJob, SyncRun, WorkerStatus
-from app.db.repositories import ChangeRepository, ExchangeRepository
+from app.db.models import DataChange, SyncJob, SyncRun, WorkerStatus, utcnow
+from app.db.repositories import ChangeRepository, CompanyRepository, ExchangeRepository
 from app.sync.queue import SyncQueue, SyncRunManager, WorkerHeartbeatManager
 
 
@@ -127,6 +128,37 @@ class SyncService:
             "pending": pending,
             "last_synced_at": last_synced_at,
         }
+
+    def get_stuck_running_count(self, threshold_seconds: int = 300) -> int:
+        threshold = utcnow() - timedelta(seconds=threshold_seconds)
+        stmt = select(func.count(SyncJob.id)).where(
+            SyncJob.status == "RUNNING",
+            SyncJob.locked_at < threshold,
+        )
+        return int(self.session.execute(stmt).scalar_one())
+
+    # ponytail: sequential exchange progress queries; ceiling is 8-10 seeded exchanges, upgrade to joined rollup if exchanges grow to hundreds
+    def get_all_exchange_progress(self) -> list[dict[str, Any]]:
+        comp_repo = CompanyRepository(self.session)
+        rows: list[dict[str, Any]] = []
+        for ex in self.exchange_repo.list_all():
+            progress = self.get_exchange_progress(ex.code)
+            rows.append({
+                "code": ex.code,
+                "name": ex.name,
+                "country": ex.country,
+                "currency": ex.currency,
+                "is_active": ex.is_active,
+                "companies_count": len(comp_repo.list_by_exchange(ex.id)),
+                "progress": progress,
+                "status": progress["status"],
+                "percent": progress["percent"],
+                "total": progress["total"],
+                "completed": progress["completed"],
+                "failed": progress["failed"],
+                "last_synced_at": progress.get("last_synced_at"),
+            })
+        return rows
 
     # Aliases for convenience
     get_queue_status = get_queue_stats

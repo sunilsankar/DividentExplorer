@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Sync Status &bull; Dividend Explorer{% endblock %}
+{% block title %}Sync Dashboard &bull; Dividend Explorer{% endblock %}
 
 {% block content %}
 <div class="section-header">
   <div>
     <h1 class="section-title">Ingestion &amp; Sync Dashboard</h1>
     <p style="color: var(--text-secondary); margin-top: 0.25rem;">
-      Monitors SQLite job queue and detached worker heartbeats. Polled every 5 seconds.
+      Live queue metrics, worker heartbeats, and exchange coverage. Polled every 5 seconds.
     </p>
   </div>
   <div style="display: flex; gap: 0.5rem;">
@@ -18,33 +18,39 @@
 </div>
 
 <div class="card" style="margin-bottom: 1.5rem;">
-  <div class="card-title">Trigger Manual Sync Jobs</div>
-  <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem;">
+  <div class="card-title">Trigger Ingestion</div>
+  <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; align-items: center;">
     <form hx-post="/sync/trigger" hx-target="#sync-status-container" hx-swap="outerHTML" style="display: flex; gap: 0.5rem; margin: 0;">
-      <input type="text" name="ticker" placeholder="Ticker (e.g. AAPL)" required style="width: 160px;">
-      <button type="submit">Enqueue Stock Sync</button>
+      <input type="text" name="ticker" placeholder="Ticker (e.g. AAPL, SHEL.L)" required style="width: 190px;">
+      <button type="submit">Sync Ticker</button>
     </form>
 
     <form hx-post="/sync/trigger" hx-target="#sync-status-container" hx-swap="outerHTML" style="display: flex; gap: 0.5rem; margin: 0;">
       <select name="exchange">
-        <option value="NYSE">Sync NYSE</option>
-        <option value="NASDAQ">Sync NASDAQ</option>
-        <option value="ARCA">Sync NYSE Arca (ETFs)</option>
-        <option value="AMS">Sync Euronext Amsterdam (AMS)</option>
-        <option value="PAR">Sync Euronext Paris (PAR)</option>
-        <option value="FRA">Sync XETRA / Frankfurt (FRA)</option>
-        <option value="BIT">Sync Borsa Italiana (BIT)</option>
-        <option value="LSE">Sync London (LSE)</option>
+        <option value="NYSE">NYSE (United States)</option>
+        <option value="NASDAQ">NASDAQ (United States)</option>
+        <option value="ARCA">NYSE Arca (ETFs)</option>
+        <option value="AMS">Euronext Amsterdam (AMS)</option>
+        <option value="PAR">Euronext Paris (PAR)</option>
+        <option value="FRA">XETRA / Frankfurt (FRA)</option>
+        <option value="BIT">Borsa Italiana (BIT)</option>
+        <option value="LSE">London Stock Exchange (LSE)</option>
       </select>
-      <button type="submit">Enqueue Exchange</button>
-    </form>
-
-    <form hx-post="/sync/retry-failed" hx-target="#sync-status-container" hx-swap="outerHTML" style="margin: 0;">
-      <button type="submit" class="button-secondary">Retry All Failed</button>
+      <button type="submit">Sync Exchange</button>
     </form>
   </div>
 </div>
 
 {% include "partials/sync_status.html" %}
+
+<details class="help-footer">
+  <summary style="cursor: pointer; font-weight: 500; color: var(--text-secondary);">How Ingestion Works &amp; Troubleshooting Guide</summary>
+  <div style="margin-top: 0.75rem; line-height: 1.6;">
+    <p>&bull; <strong>Worker Process:</strong> Syncing runs in a detached background worker. Start it with <code class="code-inline">python -m app.sync.worker</code>.</p>
+    <p>&bull; <strong>Rate Limits &amp; Throttling:</strong> Upstream Yahoo requests include conservative delays and jitter. If rate-limited (HTTP 429), the worker automatically pauses and backs off.</p>
+    <p>&bull; <strong>Job Retries:</strong> Transient network errors retry up to 5 times with exponential backoff. Retrying jobs wait in the queue until their scheduled backoff elapses.</p>
+    <p>&bull; <strong>Stuck Locks:</strong> If a worker terminates abruptly while a job is running, the lock will be detected as stale after 5 minutes and can be reaped automatically or via the <em>Reap Stuck Jobs</em> button.</p>
+  </div>
+</details>
 
 {% endblock %}

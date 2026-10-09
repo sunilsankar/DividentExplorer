@@ -1,12 +1,14 @@
 """Web UI routes using Jinja2 and HTMX."""
 
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from app.db.models import SyncJob, utcnow
 from app.db.repositories import (
     ChangeRepository,
     CompanyRepository,
@@ -281,45 +283,66 @@ def analytics_view(request: Request, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/sync", response_class=HTMLResponse)
-def sync_dashboard_view(request: Request, db: Session = Depends(get_db)):
+def _build_sync_context(db: Session, tab: str = "now") -> dict[str, Any]:
     sync_service = SyncService(db)
     overview = sync_service.get_queue_status()
     workers = sync_service.get_active_workers()
-    recent_runs = sync_service.get_recent_runs(limit=10)
-    queue_jobs = sync_service.get_recent_jobs(limit=15)
 
-    return templates.TemplateResponse(
-        request=request,
-        name="sync.html",
-        context={
-            "active_tab": "sync",
-            "overview": overview,
-            "workers": workers,
-            "recent_runs": recent_runs,
-            "queue_jobs": queue_jobs,
-        },
-    )
+    now_jobs = db.execute(
+        select(SyncJob)
+        .where(SyncJob.status.in_(["PENDING", "RETRY", "RUNNING"]))
+        .order_by(SyncJob.priority.desc(), SyncJob.next_run_at.asc(), SyncJob.id.desc())
+        .limit(15)
+    ).scalars().all()
+
+    recent_jobs = db.execute(
+        select(SyncJob)
+        .where(SyncJob.status.in_(["COMPLETED", "FAILED", "CANCELLED"]))
+        .order_by(desc(SyncJob.updated_at))
+        .limit(20)
+    ).scalars().all()
+
+    stuck_running = sync_service.get_stuck_running_count(threshold_seconds=300)
+    running_jobs_list = [j for j in now_jobs if j.status == "RUNNING"]
+
+    summary = {
+        "workers": len(workers),
+        "worker_health": "alive" if len(workers) > 0 else "dead",
+        "pending": overview.get("PENDING", 0),
+        "scheduled": overview.get("RETRY", 0),
+        "running": overview.get("RUNNING", 0),
+        "failed_permanent": overview.get("FAILED", 0),
+        "stuck_running": stuck_running,
+    }
+
+    exchanges = sync_service.get_all_exchange_progress()
+
+    return {
+        "active_tab": "sync",
+        "summary": summary,
+        "overview": overview,
+        "workers": workers,
+        "now_jobs": now_jobs,
+        "recent_jobs": recent_jobs,
+        "running_jobs_list": running_jobs_list,
+        "recent_runs": sync_service.get_recent_runs(limit=10),
+        "queue_jobs": now_jobs if tab == "now" else recent_jobs,
+        "exchanges": exchanges,
+        "now": utcnow(),
+        "tab": tab,
+    }
+
+
+@router.get("/sync", response_class=HTMLResponse)
+def sync_dashboard_view(request: Request, tab: str = "now", db: Session = Depends(get_db)):
+    context = _build_sync_context(db, tab=tab)
+    return templates.TemplateResponse(request=request, name="sync.html", context=context)
 
 
 @router.get("/sync/status", response_class=HTMLResponse)
-def sync_status_partial(request: Request, db: Session = Depends(get_db)):
-    sync_service = SyncService(db)
-    overview = sync_service.get_queue_status()
-    workers = sync_service.get_active_workers()
-    recent_runs = sync_service.get_recent_runs(limit=10)
-    queue_jobs = sync_service.get_recent_jobs(limit=15)
-
-    return templates.TemplateResponse(
-        request=request,
-        name="partials/sync_status.html",
-        context={
-            "overview": overview,
-            "workers": workers,
-            "recent_runs": recent_runs,
-            "queue_jobs": queue_jobs,
-        },
-    )
+def sync_status_partial(request: Request, tab: str = "now", db: Session = Depends(get_db)):
+    context = _build_sync_context(db, tab=tab)
+    return templates.TemplateResponse(request=request, name="partials/sync_status.html", context=context)
 
 
 @router.post("/sync/trigger", response_class=HTMLResponse)
@@ -327,6 +350,7 @@ def trigger_sync(
     request: Request,
     ticker: Optional[str] = Form(None),
     exchange: Optional[str] = Form(None),
+    tab: str = "now",
     db: Session = Depends(get_db),
 ):
     sync_service = SyncService(db)
@@ -335,16 +359,35 @@ def trigger_sync(
     elif exchange:
         sync_service.enqueue_exchange_sync(exchange.strip().upper())
     db.commit()
-
-    return sync_status_partial(request=request, db=db)
+    return sync_status_partial(request=request, tab=tab, db=db)
 
 
 @router.post("/sync/retry-failed", response_class=HTMLResponse)
-def retry_failed_sync(request: Request, db: Session = Depends(get_db)):
+def retry_failed_sync(request: Request, tab: str = "now", db: Session = Depends(get_db)):
     sync_service = SyncService(db)
     sync_service.retry_all_failed()
     db.commit()
-    return sync_status_partial(request=request, db=db)
+    return sync_status_partial(request=request, tab=tab, db=db)
+
+
+@router.post("/sync/reap-stuck", response_class=HTMLResponse)
+def reap_stuck(request: Request, tab: str = "now", db: Session = Depends(get_db)):
+    SyncQueue().reap_stale_jobs(db, stale_timeout_seconds=300)
+    db.commit()
+    return sync_status_partial(request=request, tab=tab, db=db)
+
+
+@router.post("/sync/retry-throttled", response_class=HTMLResponse)
+def retry_throttled(request: Request, tab: str = "now", db: Session = Depends(get_db)):
+    stmt = select(SyncJob).where(SyncJob.status == "RETRY")
+    now = utcnow()
+    for j in db.execute(stmt).scalars():
+        j.status = "PENDING"
+        j.next_run_at = now
+        j.error = None
+        j.updated_at = now
+    db.commit()
+    return sync_status_partial(request=request, tab=tab, db=db)
 
 
 @router.post("/sync/trigger-all-exchanges", response_class=HTMLResponse)
@@ -359,28 +402,8 @@ def trigger_all_exchanges(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/sync/exchanges", response_class=HTMLResponse)
 def exchange_sync_view(request: Request, db: Session = Depends(get_db)):
-    repo = ExchangeRepository(db)
-    exchanges = repo.list_all()
-    # Annotate companies count and sync progress
-    company_repo = CompanyRepository(db)
     sync_service = SyncService(db)
-    exchange_list = []
-    for ex in exchanges:
-        companies = company_repo.list_by_exchange(ex.id)
-        progress = sync_service.get_exchange_progress(ex.code)
-        exchange_list.append(
-            {
-                "code": ex.code,
-                "name": ex.name,
-                "country": ex.country,
-                "currency": ex.currency,
-                "is_active": ex.is_active,
-                "last_synced_at": progress.get("last_synced_at") or ex.last_synced_at,
-                "companies_count": len(companies),
-                "progress": progress,
-            }
-        )
-
+    exchange_list = sync_service.get_all_exchange_progress()
     return templates.TemplateResponse(
         request=request,
         name="exchange_sync.html",

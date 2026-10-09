@@ -1,138 +1,367 @@
-<div id="sync-status-container" hx-get="/sync/status" hx-trigger="every 5s" hx-swap="outerHTML">
-  <div class="grid">
-    <div class="card">
-      <div class="card-title">Pending Jobs</div>
-      <div class="card-value">{{ overview.pending_jobs }}</div>
-      <div class="card-subtext">Waiting in queue</div>
+<div id="sync-status-container" hx-get="/sync/status?tab={{ tab }}" hx-trigger="every 5s" hx-swap="outerHTML">
+
+  <!-- Hero Status Banner -->
+  {% if summary.workers == 0 %}
+  <div class="status-banner status-down">
+    <div>
+      <span class="status-dot dot-down"></span>
+      <strong>No worker running.</strong> Start with: <code class="code-inline">python -m app.sync.worker</code>
     </div>
-    <div class="card">
-      <div class="card-title">Running Jobs</div>
-      <div class="card-value" style="color: var(--warning-color);">{{ overview.running_jobs }}</div>
-      <div class="card-subtext">Actively processing</div>
+    <div class="last-refresh" data-now="{{ now.isoformat() }}">Polled: {{ now.strftime('%H:%M:%S') }}</div>
+  </div>
+  {% elif summary.stuck_running > 0 or summary.failed_permanent > 0 %}
+  <div class="status-banner status-warn">
+    <div>
+      <span class="status-dot dot-warn"></span>
+      <strong>Attention required:</strong>
+      {% if summary.stuck_running > 0 %}{{ summary.stuck_running }} stuck job(s){% endif %}
+      {% if summary.stuck_running > 0 and summary.failed_permanent > 0 %}, {% endif %}
+      {% if summary.failed_permanent > 0 %}{{ summary.failed_permanent }} failed job(s){% endif %}.
+      Review queue recovery below.
     </div>
-    <div class="card">
-      <div class="card-title">Failed / Retry Jobs</div>
-      <div class="card-value" style="color: var(--danger-color);">{{ overview.failed_jobs }}</div>
-      <div class="card-subtext">Max retries reached</div>
+    <div class="last-refresh" data-now="{{ now.isoformat() }}">Polled: {{ now.strftime('%H:%M:%S') }}</div>
+  </div>
+  {% else %}
+  <div class="status-banner status-ok">
+    <div>
+      <span class="status-dot dot-ok"></span>
+      <strong>Worker healthy.</strong> {{ summary.workers }} active worker(s).
+      {% if summary.pending == 0 and summary.scheduled == 0 and summary.running == 0 %}
+        Queue backlog is clear.
+      {% else %}
+        {{ summary.pending }} ready, {{ summary.scheduled }} scheduled, {{ summary.running }} processing.
+      {% endif %}
     </div>
+    <div class="last-refresh" data-now="{{ now.isoformat() }}">Polled: {{ now.strftime('%H:%M:%S') }}</div>
+  </div>
+  {% endif %}
+
+  <!-- At-a-Glance Metrics Grid -->
+  <div class="grid" style="margin-bottom: 1.5rem;">
     <div class="card">
-      <div class="card-title">Active Workers</div>
-      <div class="card-value" style="color: var(--success-color);">{{ overview.active_workers }}</div>
-      <div class="card-subtext">Heartbeat &lt; 2 minutes</div>
+      <div class="card-title">Workers</div>
+      <div class="card-value" style="{% if summary.workers > 0 %}color: var(--success-color);{% else %}color: var(--danger-color);{% endif %}">
+        {{ summary.workers }}
+      </div>
+      <div class="card-subtext">
+        {% if summary.workers > 0 %}Heartbeat active (&lt; 60s){% else %}Offline — run worker{% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Queue Backlog</div>
+      <div class="card-value" style="{% if summary.pending + summary.scheduled == 0 %}color: var(--success-color);{% elif summary.pending + summary.scheduled > 50 %}color: var(--warning-color);{% else %}color: var(--accent-color);{% endif %}">
+        {{ summary.pending + summary.scheduled }}
+      </div>
+      <div class="card-subtext">
+        {% if summary.pending + summary.scheduled == 0 %}All caught up{% else %}{{ summary.pending }} ready, {{ summary.scheduled }} retrying{% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Currently Processing</div>
+      <div class="card-value" style="{% if summary.running > 0 %}color: var(--warning-color);{% else %}color: var(--text-primary);{% endif %}">
+        {{ summary.running }}
+      </div>
+      <div class="card-subtext">
+        {% if summary.running > 0 %}{{ summary.running }} job(s) in progress{% else %}Idle waiting for work{% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Failures</div>
+      <div class="card-value" style="{% if summary.failed_permanent > 0 %}color: var(--danger-color);{% else %}color: var(--text-primary);{% endif %}">
+        {{ summary.failed_permanent }}
+      </div>
+      <div class="card-subtext">
+        {% if summary.failed_permanent > 0 %}
+          {{ summary.failed_permanent }} failed, {{ summary.scheduled }} retrying
+        {% elif summary.scheduled > 0 %}
+          0 failed, {{ summary.scheduled }} in backoff
+        {% else %}
+          0 failed, 0 retrying
+        {% endif %}
+      </div>
     </div>
   </div>
 
+  <!-- Stuck Jobs Recovery Banner if applicable -->
+  {% if summary.stuck_running > 0 %}
+  <div class="card" style="border-left: 4px solid var(--danger-color); margin-bottom: 1.5rem; background: rgba(239, 68, 68, 0.05);">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+      <div>
+        <strong style="color: var(--danger-color);">{{ summary.stuck_running }} Stuck Running Job(s) Detected</strong>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">
+          Jobs have held a lock for over 5 minutes. The worker process may have exited abruptly.
+        </p>
+      </div>
+      <form hx-post="/sync/reap-stuck?tab={{ tab }}" hx-target="#sync-status-container" hx-swap="outerHTML" style="margin: 0;">
+        <button type="submit" class="button-secondary" style="border: 1px solid var(--danger-color); color: var(--danger-color);">
+          Reap Stuck Jobs
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Actively Processing Strip if running -->
+  {% if running_jobs_list %}
+  <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid var(--warning-color);">
+    <div class="card-title" style="color: var(--warning-color);">In-Flight Jobs</div>
+    <div style="overflow-x: auto; margin-top: 0.5rem;">
+      <table>
+        <thead>
+          <tr>
+            <th>Job ID</th>
+            <th>Type</th>
+            <th>Target Ticker</th>
+            <th>Locked By</th>
+            <th>Attempts</th>
+            <th>Locked At</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rj in running_jobs_list %}
+          <tr>
+            <td>#{{ rj.id }}</td>
+            <td><span class="badge badge-warning">{{ rj.job_type }}</span></td>
+            <td><strong>{{ rj.ticker or '—' }}</strong></td>
+            <td><code>{{ rj.locked_by or 'worker' }}</code></td>
+            <td>{{ rj.attempts }} / {{ rj.max_attempts }}</td>
+            <td>{{ rj.locked_at.strftime('%H:%M:%S') if rj.locked_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Contextual Recovery Buttons -->
+  {% if summary.failed_permanent > 0 or summary.scheduled > 0 %}
+  <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap;">
+    <span style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 500;">Queue Recovery:</span>
+    {% if summary.failed_permanent > 0 %}
+    <form hx-post="/sync/retry-failed?tab={{ tab }}" hx-target="#sync-status-container" hx-swap="outerHTML" style="margin: 0;">
+      <button type="submit" class="button-secondary" style="border: 1px solid var(--border-color);">
+        Retry All Failed ({{ summary.failed_permanent }})
+      </button>
+    </form>
+    {% endif %}
+    {% if summary.scheduled > 0 %}
+    <form hx-post="/sync/retry-throttled?tab={{ tab }}" hx-target="#sync-status-container" hx-swap="outerHTML" style="margin: 0;">
+      <button type="submit" class="button-secondary" style="border: 1px solid var(--border-color);">
+        Retry Throttled Immediately ({{ summary.scheduled }})
+      </button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Queue Activity Tabs & Table -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+    <div class="tab-bar" style="margin: 0; border: none;">
+      <button type="button"
+              hx-get="/sync/status?tab=now"
+              hx-target="#sync-status-container"
+              hx-swap="outerHTML"
+              class="{% if tab == 'now' %}active{% endif %}">
+        Active Backlog ({{ now_jobs|length }})
+      </button>
+      <button type="button"
+              hx-get="/sync/status?tab=recent"
+              hx-target="#sync-status-container"
+              hx-swap="outerHTML"
+              class="{% if tab == 'recent' %}active{% endif %}">
+        Recent History ({{ recent_jobs|length }})
+      </button>
+    </div>
+    <span style="font-size: 0.8rem; color: var(--text-muted);">
+      {% if tab == 'now' %}Pending, retrying, and running jobs{% else %}Recently completed and failed jobs{% endif %}
+    </span>
+  </div>
+
+  <div style="overflow-x: auto; margin-bottom: 2rem;">
+    <table>
+      <thead>
+        <tr>
+          <th>Job ID</th>
+          <th>Type</th>
+          <th>Target</th>
+          <th>Status</th>
+          <th>Attempts</th>
+          <th>{% if tab == 'now' %}Scheduled / Priority{% else %}Finished At{% endif %}</th>
+          <th>Error / Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set jobs_to_show = now_jobs if tab == 'now' else recent_jobs %}
+        {% for j in jobs_to_show %}
+        <tr>
+          <td>#{{ j.id }}</td>
+          <td><span class="badge badge-neutral">{{ j.job_type }}</span></td>
+          <td><strong>{{ j.ticker or '—' }}</strong></td>
+          <td>
+            {% if j.status == 'COMPLETED' %}
+              <span class="badge badge-success">Completed</span>
+            {% elif j.status == 'RUNNING' %}
+              <span class="badge badge-warning">Running</span>
+            {% elif j.status == 'RETRY' %}
+              <span class="badge badge-warning">Retrying</span>
+            {% elif j.status == 'FAILED' %}
+              <span class="badge badge-danger">Failed</span>
+            {% else %}
+              <span class="badge badge-neutral">{{ j.status }}</span>
+            {% endif %}
+          </td>
+          <td>{{ j.attempts }} / {{ j.max_attempts }}</td>
+          <td>
+            {% if tab == 'now' %}
+              {% if j.status == 'RETRY' and j.next_run_at %}
+                <span title="{{ j.next_run_at.strftime('%Y-%m-%d %H:%M:%S') }}">Backoff to {{ j.next_run_at.strftime('%H:%M:%S') }}</span>
+              {% else %}
+                P{{ j.priority }}
+              {% endif %}
+            {% else %}
+              {{ j.updated_at.strftime('%H:%M:%S') if j.updated_at else '—' }}
+            {% endif %}
+          </td>
+          <td style="max-width: 260px;">
+            {% if j.error %}
+              <details style="cursor: pointer;">
+                <summary style="color: var(--danger-color); font-size: 0.8rem;">
+                  {{ j.error[:60] }}{% if j.error|length > 60 %}...{% endif %}
+                </summary>
+                <pre style="margin-top: 4px; padding: 4px; background: var(--bg-primary); border-radius: 4px; font-size: 0.75rem; white-space: pre-wrap; word-break: break-all;">{{ j.error }}</pre>
+              </details>
+            {% else %}
+              <span style="color: var(--text-muted);">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">
+            {% if tab == 'now' %}
+              Queue backlog is clear. No pending or retrying jobs.
+            {% else %}
+              No recent completed or failed jobs recorded.
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Exchange Coverage Summary Table -->
+  <div class="section-header">
+    <h2 class="section-title">Exchange Synchronization Summary</h2>
+    <a href="/sync/exchanges" style="font-size: 0.85rem; color: var(--accent-color); text-decoration: none;">
+      View all exchanges in detail &rarr;
+    </a>
+  </div>
+
+  <div style="overflow-x: auto; margin-bottom: 2rem;">
+    <table>
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Exchange Name</th>
+          <th>Currency</th>
+          <th>Status</th>
+          <th>Progress</th>
+          <th>Companies</th>
+          <th>Last Synced</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ex in exchanges %}
+        <tr>
+          <td><strong>{{ ex.code }}</strong></td>
+          <td>{{ ex.name }}</td>
+          <td><span class="badge badge-neutral">{{ ex.currency or 'USD' }}</span></td>
+          <td>
+            {% if ex.status == 'COMPLETED' %}
+              <span class="badge badge-success">Synced</span>
+            {% elif ex.status == 'RUNNING' %}
+              <span class="badge badge-warning">Syncing...</span>
+            {% elif ex.status == 'PENDING' %}
+              <span class="badge badge-warning">Queued</span>
+            {% elif ex.status == 'FAILED' %}
+              <span class="badge badge-danger">Failed</span>
+            {% else %}
+              <span class="badge badge-neutral">Not started</span>
+            {% endif %}
+          </td>
+          <td style="min-width: 140px;">
+            {% if ex.total > 0 %}
+              <div style="font-size: 0.75rem; display: flex; justify-content: space-between; margin-bottom: 2px;">
+                <span><strong>{{ ex.percent }}%</strong></span>
+                <span style="color: var(--text-muted);">{{ ex.completed }}/{{ ex.total }}</span>
+              </div>
+              <progress value="{{ ex.completed + ex.failed }}" max="{{ ex.total }}" style="width: 100%; height: 6px;"></progress>
+            {% else %}
+              <span style="color: var(--text-muted); font-size: 0.85rem;">—</span>
+            {% endif %}
+          </td>
+          <td><strong>{{ ex.companies_count }}</strong></td>
+          <td>
+            {% if ex.last_synced_at %}
+              {{ ex.last_synced_at.strftime('%Y-%m-%d %H:%M:%S') }}
+            {% else %}
+              <span style="color: var(--text-muted);">Never</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">No exchanges configured.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Worker Heartbeats Table -->
   <div class="section-header">
     <h2 class="section-title">Worker Heartbeats</h2>
-    <span style="font-size: 0.85rem; color: var(--text-muted);">Auto-refreshes every 5s</span>
+    <span style="font-size: 0.85rem; color: var(--text-muted);">Refreshes every 5s</span>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Worker ID</th>
-        <th>Host / PID</th>
-        <th>Status</th>
-        <th>Last Heartbeat</th>
-        <th>Current Job</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for w in workers %}
-      <tr>
-        <td><strong>{{ w.worker_id }}</strong></td>
-        <td>{{ w.hostname }}:{{ w.pid }}</td>
-        <td>
-          <span class="badge {% if w.status == 'alive' %}badge-success{% else %}badge-neutral{% endif %}">
-            {{ w.status }}
-          </span>
-        </td>
-        <td>{{ w.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S') if w.last_heartbeat else '—' }}</td>
-        <td>{{ w.current_job_id or 'Idle' }}</td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="5" style="text-align: center; color: var(--text-muted);">No workers active. Start worker with: <code>python -m app.sync.worker</code></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <div class="section-header">
-    <h2 class="section-title">Recent Sync Runs</h2>
+  <div style="overflow-x: auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Worker ID</th>
+          <th>Host / PID</th>
+          <th>Status</th>
+          <th>Last Heartbeat</th>
+          <th>Current Job</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in workers %}
+        <tr>
+          <td><strong>{{ w.worker_id }}</strong></td>
+          <td>{{ w.hostname or 'localhost' }}:{{ w.pid or '—' }}</td>
+          <td>
+            <span class="badge {% if w.status == 'BUSY' %}badge-warning{% elif w.status in ('IDLE', 'alive') %}badge-success{% else %}badge-neutral{% endif %}">
+              {{ w.status }}
+            </span>
+          </td>
+          <td>{{ w.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S') if w.last_heartbeat else '—' }}</td>
+          <td>{{ w.current_job_id or 'Idle' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">
+            No workers active. Start worker with: <code class="code-inline">python -m app.sync.worker</code>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Run ID</th>
-        <th>Type</th>
-        <th>Status</th>
-        <th>Processed</th>
-        <th>Failed</th>
-        <th>Started At</th>
-        <th>Finished At</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in recent_runs %}
-      <tr>
-        <td>#{{ r.id }}</td>
-        <td><span class="badge badge-neutral">{{ r.run_type }}</span></td>
-        <td>
-          <span class="badge {% if r.status == 'completed' %}badge-success{% elif r.status == 'running' %}badge-warning{% elif r.status == 'failed' %}badge-danger{% else %}badge-neutral{% endif %}">
-            {{ r.status }}
-          </span>
-        </td>
-        <td>{{ r.items_processed }}</td>
-        <td>{{ r.items_failed }}</td>
-        <td>{{ r.started_at.strftime('%H:%M:%S') if r.started_at else '—' }}</td>
-        <td>{{ r.finished_at.strftime('%H:%M:%S') if r.finished_at else '—' }}</td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="7" style="text-align: center; color: var(--text-muted);">No sync runs recorded yet.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <div class="section-header">
-    <h2 class="section-title">Queue Activity</h2>
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Job ID</th>
-        <th>Type</th>
-        <th>Target Ticker</th>
-        <th>Status</th>
-        <th>Attempts</th>
-        <th>Priority</th>
-        <th>Scheduled For</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for j in queue_jobs %}
-      <tr>
-        <td>#{{ j.id }}</td>
-        <td>{{ j.job_type }}</td>
-        <td><strong>{{ j.ticker or '—' }}</strong></td>
-        <td>
-          <span class="badge {% if j.status == 'completed' %}badge-success{% elif j.status == 'running' %}badge-warning{% elif j.status == 'failed' %}badge-danger{% else %}badge-neutral{% endif %}">
-            {{ j.status }}
-          </span>
-        </td>
-        <td>{{ j.attempts }} / {{ j.max_attempts }}</td>
-        <td>{{ j.priority }}</td>
-        <td>{{ j.scheduled_for.strftime('%H:%M:%S') if j.scheduled_for else '—' }}</td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="7" style="text-align: center; color: var(--text-muted);">Queue is empty.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
 </div>
