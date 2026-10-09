@@ -320,6 +320,41 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("Ingestion &amp; Sync Dashboard", resp.text)
         self.assertIn("Active Backlog", resp.text)
         self.assertIn("Recent History", resp.text)
+        self.assertIn("Sync Logs", resp.text)
+
+    def test_sync_logs_view_and_partial(self):
+        # Create a sample completed job and failed job
+        job_ok = SyncJob(
+            job_type="SYNC_COMPANY",
+            ticker="JNJ",
+            status="COMPLETED",
+            attempts=1,
+            max_attempts=3,
+        )
+        job_failed = SyncJob(
+            job_type="SYNC_COMPANY",
+            ticker="FAILTICKER",
+            status="FAILED",
+            attempts=3,
+            max_attempts=3,
+            error="Rate limit exceeded",
+        )
+        self.session.add_all([job_ok, job_failed])
+        self.session.commit()
+
+        # Direct view /sync/logs
+        resp = self.client.get("/sync/logs")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Sync Logs", resp.text)
+        self.assertIn("Worker Process Log", resp.text)
+        self.assertIn("FAILTICKER", resp.text)
+        self.assertIn("Retry", resp.text)
+
+        # Partial HTMX swap /sync/status?tab=logs
+        resp_partial = self.client.get("/sync/status?tab=logs")
+        self.assertEqual(resp_partial.status_code, 200)
+        self.assertIn("Worker Process Log", resp_partial.text)
+        self.assertIn("FAILTICKER", resp_partial.text)
 
     def test_sync_status_partial(self):
         resp = self.client.get("/sync/status?tab=now")

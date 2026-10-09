@@ -1,5 +1,6 @@
 """Web UI routes using Jinja2 and HTMX."""
 
+import subprocess
 from pathlib import Path
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, Form, Request, status
@@ -287,6 +288,23 @@ def analytics_view(request: Request, db: Session = Depends(get_db)):
     )
 
 
+def _get_worker_logs(lines: int = 80) -> str:
+    # ponytail: stdlib subprocess reads systemd journal without extra logging daemon; upgrade: journald socket if high frequency
+    try:
+        proc = subprocess.run(
+            ["journalctl", "-u", "dividend-worker", "-n", str(lines), "--no-pager"],
+            capture_output=True,
+            text=True,
+            timeout=1.5,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            return proc.stdout.strip()
+    except Exception:
+        pass
+    return ""
+
+
 def _build_sync_context(db: Session, tab: str = "now") -> dict[str, Any]:
     sync_service = SyncService(db)
     overview = sync_service.get_queue_status()
@@ -306,8 +324,15 @@ def _build_sync_context(db: Session, tab: str = "now") -> dict[str, Any]:
         .limit(20)
     ).scalars().all()
 
+    log_jobs = db.execute(
+        select(SyncJob)
+        .order_by(desc(SyncJob.updated_at))
+        .limit(50)
+    ).scalars().all()
+
     stuck_running = sync_service.get_stuck_running_count(threshold_seconds=300)
     running_jobs_list = [j for j in now_jobs if j.status == "RUNNING"]
+    raw_logs = _get_worker_logs() if tab == "logs" else ""
 
     summary = {
         "workers": len(workers),
@@ -322,15 +347,17 @@ def _build_sync_context(db: Session, tab: str = "now") -> dict[str, Any]:
     exchanges = sync_service.get_all_exchange_progress()
 
     return {
-        "active_tab": "sync",
+        "active_tab": "sync_logs" if tab == "logs" else "sync",
         "summary": summary,
         "overview": overview,
         "workers": workers,
         "now_jobs": now_jobs,
         "recent_jobs": recent_jobs,
+        "log_jobs": log_jobs,
+        "raw_logs": raw_logs,
         "running_jobs_list": running_jobs_list,
         "recent_runs": sync_service.get_recent_runs(limit=10),
-        "queue_jobs": now_jobs if tab == "now" else recent_jobs,
+        "queue_jobs": now_jobs if tab == "now" else (log_jobs if tab == "logs" else recent_jobs),
         "exchanges": exchanges,
         "now": utcnow(),
         "tab": tab,
@@ -340,6 +367,12 @@ def _build_sync_context(db: Session, tab: str = "now") -> dict[str, Any]:
 @router.get("/sync", response_class=HTMLResponse)
 def sync_dashboard_view(request: Request, tab: str = "now", db: Session = Depends(get_db)):
     context = _build_sync_context(db, tab=tab)
+    return templates.TemplateResponse(request=request, name="sync.html", context=context)
+
+
+@router.get("/sync/logs", response_class=HTMLResponse)
+def sync_logs_view(request: Request, db: Session = Depends(get_db)):
+    context = _build_sync_context(db, tab="logs")
     return templates.TemplateResponse(request=request, name="sync.html", context=context)
 
 

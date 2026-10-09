@@ -175,11 +175,32 @@
               class="{% if tab == 'recent' %}active{% endif %}">
         Recent History ({{ recent_jobs|length }})
       </button>
+      <button type="button"
+              hx-get="/sync/status?tab=logs"
+              hx-target="#sync-status-container"
+              hx-swap="outerHTML"
+              class="{% if tab == 'logs' %}active{% endif %}">
+        Sync Logs ({{ log_jobs|length }})
+      </button>
     </div>
     <span style="font-size: 0.8rem; color: var(--text-muted);">
-      {% if tab == 'now' %}Pending, retrying, and running jobs{% else %}Recently completed and failed jobs{% endif %}
+      {% if tab == 'now' %}Pending, retrying, and running jobs{% elif tab == 'logs' %}Live worker journal &amp; execution audit{% else %}Recently completed and failed jobs{% endif %}
     </span>
   </div>
+
+  {% if tab == 'logs' %}
+  <div class="card" style="margin-bottom: 1.5rem; background: #0f172a; color: #f8fafc; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.8rem; border-color: #334155;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+      <span style="font-weight: 600; color: #38bdf8;">Worker Process Log (journalctl -u dividend-worker)</span>
+      <span style="font-size: 0.75rem; color: #94a3b8;">Polled every 5s</span>
+    </div>
+    {% if raw_logs %}
+    <pre style="margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 280px; overflow-y: auto; color: #cbd5e1; font-family: inherit;">{{ raw_logs }}</pre>
+    {% else %}
+    <div style="color: #94a3b8; padding: 0.5rem 0;">No systemd journal output found on local host (available on Linux server host). Database execution events shown below.</div>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <div style="overflow-x: auto; margin-bottom: 2rem;">
     <table>
@@ -190,12 +211,12 @@
           <th>Target</th>
           <th>Status</th>
           <th>Attempts</th>
-          <th>{% if tab == 'now' %}Scheduled / Priority{% else %}Finished At{% endif %}</th>
+          <th>{% if tab == 'now' %}Scheduled / Priority{% else %}Updated At{% endif %}</th>
           <th>Error / Notes</th>
         </tr>
       </thead>
       <tbody>
-        {% set jobs_to_show = now_jobs if tab == 'now' else recent_jobs %}
+        {% set jobs_to_show = now_jobs if tab == 'now' else (log_jobs if tab == 'logs' else recent_jobs) %}
         {% for j in jobs_to_show %}
         <tr>
           <td>#{{ j.id }}</td>
@@ -210,6 +231,13 @@
               <span class="badge badge-warning">Retrying</span>
             {% elif j.status == 'FAILED' %}
               <span class="badge badge-danger">Failed</span>
+              {% if j.ticker %}
+              <form hx-post="/sync/trigger" hx-target="#sync-status-container" hx-swap="outerHTML" style="display: inline; margin: 0; margin-left: 0.35rem;">
+                <input type="hidden" name="ticker" value="{{ j.ticker }}">
+                <input type="hidden" name="tab" value="{{ tab }}">
+                <button type="submit" class="button-secondary" style="padding: 1px 6px; font-size: 0.7rem; border-radius: 4px;">Retry</button>
+              </form>
+              {% endif %}
             {% else %}
               <span class="badge badge-neutral">{{ j.status }}</span>
             {% endif %}
@@ -244,6 +272,8 @@
           <td colspan="7" class="empty-state">
             {% if tab == 'now' %}
               Queue backlog is clear. No pending or retrying jobs.
+            {% elif tab == 'logs' %}
+              No sync log events recorded in queue history.
             {% else %}
               No recent completed or failed jobs recorded.
             {% endif %}
