@@ -40,6 +40,7 @@ class SyncWorker:
             jitter_ratio=0.2,
         )
         self.yahoo = yahoo_client or YahooClient()
+        self._idle_logged = False
 
     def stop(self) -> None:
         logger.info("Worker stop requested")
@@ -64,7 +65,15 @@ class SyncWorker:
 
             job = self.queue.acquire_next(session)
             if not job:
+                if not self._idle_logged:
+                    logger.info(
+                        "Queue is empty; worker is idle and waiting for jobs (polling every %.1fs)",
+                        self.poll_interval,
+                    )
+                    self._idle_logged = True
                 return False
+
+            self._idle_logged = False
 
             logger.info("Acquired job #%d: type=%s ticker=%s", job.id, job.job_type, job.ticker)
             WorkerHeartbeatManager.heartbeat(session, worker_id=self.worker_id, status="BUSY", current_job_id=job.id)
