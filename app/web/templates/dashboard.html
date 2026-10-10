@@ -35,42 +35,25 @@
 </div>
 
 <div class="section-header">
-  <h2 class="section-title">Top Dividend Yields</h2>
+  <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+    <h2 class="section-title" style="margin: 0;">Top Dividend Yields</h2>
+    <select name="exchange"
+            hx-get="/dashboard/top-yields"
+            hx-target="#top-yields-container"
+            hx-swap="innerHTML"
+            style="padding: 0.3rem 0.6rem; font-size: 0.85rem;">
+      <option value="">All Exchanges</option>
+      {% for ex in exchanges %}
+      <option value="{{ ex.code }}" {% if selected_exchange == ex.code %}selected{% endif %}>{{ ex.code }} - {{ ex.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
   <a href="/stocks?sort=yield">View all stocks &rarr;</a>
 </div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Ticker</th>
-      <th>Company</th>
-      <th>Sector</th>
-      <th>Current Yield</th>
-      <th>Annual Dividend</th>
-      <th>Quality Score</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for item in top_yields %}
-    <tr>
-      <td><strong><a href="/stocks/{{ item.ticker }}">{{ item.ticker }}</a></strong></td>
-      <td>{{ item.company_name }}</td>
-      <td>{{ item.sector or '—' }}</td>
-      <td><span class="badge badge-success">{{ "%.2f"|format(item.current_yield) }}%</span></td>
-      <td>{% if item.annual_dividend is not none %}{{ item.currency|currency_symbol }}{{ "%.2f"|format(item.annual_dividend) }}{% else %}—{% endif %}</td>
-      <td>
-        <span class="badge {% if item.dividend_quality_score and item.dividend_quality_score >= 70 %}badge-success{% elif item.dividend_quality_score and item.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
-          {{ item.dividend_quality_score if item.dividend_quality_score is not none else 'N/A' }}
-        </span>
-      </td>
-    </tr>
-    {% else %}
-    <tr>
-      <td colspan="6" style="text-align: center; color: var(--text-muted);">No yield data available. Run sync to ingest companies.</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div id="top-yields-container">
+  {% include "partials/top_yields_table.html" %}
+</div>
 
 <div class="section-header">
   <h2 class="section-title">Dividend Quality Leaders</h2>

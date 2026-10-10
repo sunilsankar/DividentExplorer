@@ -10,8 +10,12 @@
       Track market exchanges and trigger ticker universe discovery.
     </p>
   </div>
-  <div style="display: flex; gap: 0.75rem;">
-    <form hx-post="/sync/trigger-all-exchanges" hx-target="#exchange-table-container" hx-swap="outerHTML" style="margin: 0;">
+  <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <form hx-post="/sync/trigger-all-exchanges" hx-target="#exchange-table-container" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.35rem; align-items: center;">
+      <select name="sync_mode" style="font-size: 0.85rem; padding: 0.4rem 0.6rem;">
+        <option value="incremental" selected>Incremental</option>
+        <option value="full">Full Sync</option>
+      </select>
       <button type="submit" class="button-primary">Sync All Exchanges</button>
     </form>
     <a href="/sync">
@@ -72,10 +76,17 @@
         <div style="display: flex; gap: 0.35rem;">
           <form hx-post="/sync/trigger" hx-swap="none" style="margin: 0; display: inline-block;">
             <input type="hidden" name="exchange" value="{{ ex.code }}">
-            <button type="submit" class="button-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Sync Now</button>
+            <input type="hidden" name="sync_mode" value="incremental">
+            <button type="submit" class="button-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" title="Incremental sync (new dividends & prices only)">Incremental</button>
+          </form>
+          <form hx-post="/sync/trigger" hx-swap="none" style="margin: 0; display: inline-block;">
+            <input type="hidden" name="exchange" value="{{ ex.code }}">
+            <input type="hidden" name="sync_mode" value="full">
+            <button type="submit" class="button-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" title="Full sync (refresh company profile & financials too)">Full</button>
           </form>
           <form hx-post="/sync/force" hx-target="#exchange-table-container" hx-select="#exchange-table-container" hx-swap="outerHTML" style="margin: 0; display: inline-block;">
             <input type="hidden" name="exchange" value="{{ ex.code }}">
+            <input type="hidden" name="sync_mode" value="full">
             <button type="submit" class="button-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; border-color: var(--danger-color); color: var(--danger-color);" title="Cancel any in-flight sync and queue fresh discovery">Force</button>
           </form>
         </div>

@@ -1,6 +1,8 @@
 """Web UI routes using Jinja2 and HTMX."""
 
+import calendar as pycalendar
 import subprocess
+from datetime import date
 from pathlib import Path
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, Form, Request, status
@@ -41,13 +43,15 @@ router = APIRouter(include_in_schema=False)
 
 
 @router.get("/", response_class=HTMLResponse)
-def dashboard_view(request: Request, db: Session = Depends(get_db)):
+def dashboard_view(request: Request, exchange: Optional[str] = None, db: Session = Depends(get_db)):
     stock_service = StockService(db)
     sync_service = SyncService(db)
     change_repo = ChangeRepository(db)
 
     total_companies = len(CompanyRepository(db).list_companies(limit=10000))
-    raw_top_yields = stock_service.get_top_yields(limit=5)
+    exchanges = stock_service.list_exchanges()
+    selected_exchange = exchange.strip().upper() if exchange else ""
+    raw_top_yields = stock_service.get_top_yields(limit=5, exchange_code=selected_exchange or None)
     top_yields = [
         {
             "ticker": comp.ticker,
@@ -92,7 +96,33 @@ def dashboard_view(request: Request, db: Session = Depends(get_db)):
             "top_yields": top_yields,
             "quality_leaders": quality_leaders,
             "recent_changes": recent_changes,
+            "exchanges": exchanges,
+            "selected_exchange": selected_exchange,
         },
+    )
+
+
+@router.get("/dashboard/top-yields", response_class=HTMLResponse)
+def dashboard_top_yields_partial(request: Request, exchange: Optional[str] = None, db: Session = Depends(get_db)):
+    stock_service = StockService(db)
+    selected_exchange = exchange.strip().upper() if exchange else ""
+    raw_top_yields = stock_service.get_top_yields(limit=5, exchange_code=selected_exchange or None)
+    top_yields = [
+        {
+            "ticker": comp.ticker,
+            "company_name": comp.name,
+            "sector": comp.sector,
+            "current_yield": metric.current_yield if metric else 0.0,
+            "annual_dividend": metric.annual_dividend if metric else None,
+            "dividend_quality_score": metric.quality_score if metric else None,
+            "currency": comp.currency,
+        }
+        for comp, metric in raw_top_yields
+    ]
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/top_yields_table.html",
+        context={"top_yields": top_yields},
     )
 
 
@@ -221,9 +251,25 @@ def competitors_view(
 
 
 @router.get("/calendar", response_class=HTMLResponse)
-def calendar_view(request: Request, db: Session = Depends(get_db)):
+def calendar_view(
+    request: Request,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    asset_type: Optional[str] = None,
+    currency: Optional[str] = None,
+    view: Optional[str] = "calendar",
+    db: Session = Depends(get_db),
+):
     stock_service = StockService(db)
-    raw_events = stock_service.get_dividend_calendar(days=60)
+    available_currencies = stock_service.list_currencies()
+    normalized_asset_type = asset_type.strip().upper() if asset_type else None
+    normalized_currency = currency.strip().upper() if currency else None
+
+    raw_events = stock_service.get_dividend_calendar(
+        asset_type=normalized_asset_type,
+        currency=normalized_currency,
+        limit=200,
+    )
     events = [
         {
             "ex_date": ev.ex_date,
@@ -233,16 +279,63 @@ def calendar_view(request: Request, db: Session = Depends(get_db)):
             "currency": ev.currency or comp.currency,
             "payment_date": ev.pay_date,
             "record_date": ev.record_date,
+            "asset_type": comp.asset_type,
         }
         for ev, comp in raw_events
     ]
+
+    today = date.today()
+    if year is None or month is None:
+        if events and not any(e["ex_date"].year == today.year and e["ex_date"].month == today.month for e in events):
+            target_date = events[0]["ex_date"]
+            cur_year, cur_month = target_date.year, target_date.month
+        else:
+            cur_year, cur_month = today.year, today.month
+    else:
+        cur_year, cur_month = int(year), int(month)
+
+    prev_year, prev_month = (cur_year - 1, 12) if cur_month == 1 else (cur_year, cur_month - 1)
+    next_year, next_month = (cur_year + 1, 1) if cur_month == 12 else (cur_year, cur_month + 1)
+
+    cal_matrix = pycalendar.monthcalendar(cur_year, cur_month)
+    month_name = pycalendar.month_name[cur_month]
+
+    events_by_day: dict[int, list[dict]] = {}
+    for ev in events:
+        d = ev["ex_date"]
+        if d.year == cur_year and d.month == cur_month:
+            events_by_day.setdefault(d.day, []).append(ev)
+
+    context = {
+        "active_tab": "calendar",
+        "events": events,
+        "events_by_day": events_by_day,
+        "cal_matrix": cal_matrix,
+        "year": cur_year,
+        "month": cur_month,
+        "month_name": month_name,
+        "prev_year": prev_year,
+        "prev_month": prev_month,
+        "next_year": next_year,
+        "next_month": next_month,
+        "selected_asset_type": normalized_asset_type or "",
+        "selected_currency": normalized_currency or "",
+        "available_currencies": available_currencies,
+        "current_view": view or "calendar",
+        "today_day": today.day if today.year == cur_year and today.month == cur_month else None,
+    }
+
+    if request.headers.get("HX-Request") and request.headers.get("HX-Target") == "calendar-container":
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/calendar_content.html",
+            context=context,
+        )
+
     return templates.TemplateResponse(
         request=request,
         name="calendar.html",
-        context={
-            "active_tab": "calendar",
-            "events": events,
-        },
+        context=context,
     )
 
 
@@ -393,16 +486,18 @@ def trigger_sync(
     request: Request,
     ticker: Optional[str] = Form(None),
     exchange: Optional[str] = Form(None),
+    sync_mode: str = Form("incremental"),
     tab: str = "now",
     db: Session = Depends(get_db),
 ):
     sync_service = SyncService(db)
     hint: Optional[str] = None
+    mode = sync_mode.strip().lower() if sync_mode else "incremental"
     if ticker:
-        sync_service.enqueue_company_sync(ticker.strip().upper(), priority=9)
+        sync_service.enqueue_company_sync(ticker.strip().upper(), priority=9, sync_mode=mode)
     elif exchange:
         code = exchange.strip().upper()
-        job, deduplicated = sync_service.enqueue_exchange_sync(code)
+        job, deduplicated = sync_service.enqueue_exchange_sync(code, sync_mode=mode)
         if deduplicated:
             hint = f"Exchange {code} sync is already queued/running (Job #{job.id})."
     db.commit()
@@ -416,12 +511,14 @@ def trigger_sync(
 def force_exchange_sync(
     request: Request,
     exchange: str = Form(...),
+    sync_mode: str = Form("incremental"),
     db: Session = Depends(get_db),
 ):
     code = exchange.strip().upper()
+    mode = sync_mode.strip().lower() if sync_mode else "incremental"
     sync_service = SyncService(db)
     sync_service.cancel_in_flight_exchange_syncs(code)
-    sync_service.enqueue_exchange_sync(code, deduplicate=False)
+    sync_service.enqueue_exchange_sync(code, deduplicate=False, sync_mode=mode)
     return exchange_sync_view(request=request, db=db)
 
 
@@ -467,11 +564,16 @@ def cleanup_unclassified(request: Request, tab: str = "now", db: Session = Depen
 
 
 @router.post("/sync/trigger-all-exchanges", response_class=HTMLResponse)
-def trigger_all_exchanges(request: Request, db: Session = Depends(get_db)):
+def trigger_all_exchanges(
+    request: Request,
+    sync_mode: str = Form("incremental"),
+    db: Session = Depends(get_db),
+):
+    mode = sync_mode.strip().lower() if sync_mode else "incremental"
     repo = ExchangeRepository(db)
     sync_service = SyncService(db)
     for ex in repo.list_all(active_only=True):
-        sync_service.enqueue_exchange_sync(ex.code)
+        sync_service.enqueue_exchange_sync(ex.code, sync_mode=mode)
     db.commit()
     return exchange_sync_view(request=request, db=db)
 

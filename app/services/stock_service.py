@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Any, Optional, Sequence
-from sqlalchemy import desc, select
+from sqlalchemy import desc, distinct, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Company, CompanyRelationship, DividendEvent, DividendMetric, Exchange, FinancialMetric
@@ -258,14 +258,15 @@ class StockService:
             "industry_avg_quality": avg_quality,
         }
 
-    def get_top_yields(self, limit: int = 20) -> Sequence[tuple[Company, DividendMetric]]:
+    def get_top_yields(self, limit: int = 20, exchange_code: Optional[str] = None) -> Sequence[tuple[Company, DividendMetric]]:
         stmt = (
             select(Company, DividendMetric)
             .join(DividendMetric, DividendMetric.company_id == Company.id)
             .where(DividendMetric.current_yield.is_not(None), DividendMetric.current_yield > 0)
-            .order_by(desc(DividendMetric.current_yield))
-            .limit(limit)
         )
+        if exchange_code:
+            stmt = stmt.join(Exchange, Company.exchange_id == Exchange.id).where(Exchange.code == exchange_code.upper())
+        stmt = stmt.order_by(desc(DividendMetric.current_yield)).limit(limit)
         return self.session.execute(stmt).all()
 
     def get_dividend_growth_leaders(self, limit: int = 20) -> Sequence[tuple[Company, DividendMetric]]:
@@ -293,12 +294,27 @@ class StockService:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         days: Optional[int] = None,
-        limit: int = 50,
+        asset_type: Optional[str] = None,
+        currency: Optional[str] = None,
+        limit: int = 200,
     ) -> Sequence[tuple[DividendEvent, Company]]:
         base_stmt = (
             select(DividendEvent, Company)
             .join(Company, DividendEvent.company_id == Company.id)
         )
+        if asset_type:
+            base_stmt = base_stmt.where(Company.asset_type == asset_type.upper())
+        if currency:
+            base_stmt = (
+                base_stmt.join(Exchange, Company.exchange_id == Exchange.id)
+                .where(
+                    or_(
+                        Company.currency == currency.upper(),
+                        DividendEvent.currency == currency.upper(),
+                        Exchange.currency == currency.upper(),
+                    )
+                )
+            )
         stmt = base_stmt
         if start_date:
             stmt = stmt.where(DividendEvent.ex_date >= start_date)
@@ -316,6 +332,12 @@ class StockService:
             stmt = base_stmt
         stmt = stmt.order_by(desc(DividendEvent.ex_date)).limit(limit)
         return self.session.execute(stmt).all()
+
+    def list_currencies(self) -> list[str]:
+        # ponytail: distinct currencies from companies and exchanges for calendar filter
+        c_res = self.session.execute(select(Company.currency).where(Company.currency.is_not(None)).distinct()).scalars().all()
+        e_res = self.session.execute(select(Exchange.currency).where(Exchange.currency.is_not(None)).distinct()).scalars().all()
+        return sorted({c.upper() for c in (list(c_res) + list(e_res)) if c})
 
     def get_industry_summaries(self) -> list[dict[str, Any]]:
         # Retrieve all active companies with metrics

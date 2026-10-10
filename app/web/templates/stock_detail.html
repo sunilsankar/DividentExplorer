@@ -21,10 +21,16 @@
       {{ company.name }} &bull; {{ company.sector or 'Unclassified' }} &bull; {{ company.industry or 'Unclassified' }}
     </p>
   </div>
-  <div style="display: flex; gap: 0.5rem; align-items: center;">
-    <form hx-post="/sync/trigger" hx-swap="none" style="margin: 0;">
+  <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+    <form hx-post="/sync/trigger" hx-swap="none" style="margin: 0; display: inline-flex; gap: 0.25rem;">
       <input type="hidden" name="ticker" value="{{ company.ticker }}">
-      <button type="submit" class="button-secondary">Sync {{ company.ticker }}</button>
+      <input type="hidden" name="sync_mode" value="incremental">
+      <button type="submit" class="button-secondary" title="Sync recent dividend events & prices">Sync (Incremental)</button>
+    </form>
+    <form hx-post="/sync/trigger" hx-swap="none" style="margin: 0; display: inline-flex; gap: 0.25rem;">
+      <input type="hidden" name="ticker" value="{{ company.ticker }}">
+      <input type="hidden" name="sync_mode" value="full">
+      <button type="submit" class="button-secondary" title="Full refresh including profile & financials">Full Sync</button>
     </form>
     <a href="/competitors?ticker={{ company.ticker }}">
       <button type="button">Compare Peers &rarr;</button>

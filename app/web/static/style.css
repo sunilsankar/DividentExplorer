@@ -377,6 +377,93 @@ button:hover {
   color: var(--text-primary);
 }
 
+/* Calendar styling */
+.calendar-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.calendar-grid-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background-color: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+.calendar-day {
+  background-color: var(--bg-card);
+  min-height: 100px;
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+}
+.calendar-day.empty {
+  background-color: var(--bg-primary);
+  opacity: 0.35;
+}
+.calendar-day.today {
+  border: 1px solid var(--accent-color);
+}
+.calendar-day-header {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+}
+.calendar-day.today .calendar-day-header {
+  color: var(--accent-color);
+}
+.calendar-events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+  max-height: 90px;
+}
+.calendar-pill {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.35rem;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #34d399;
+  border-radius: 4px;
+  text-decoration: none;
+}
+.calendar-pill.pill-etf {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: #60a5fa;
+}
+.calendar-pill:hover {
+  filter: brightness(1.2);
+}
+
 @media (max-width: 768px) {
   main table {
     display: block;
@@ -387,6 +474,24 @@ button:hover {
   .section-header {
     flex-wrap: wrap;
     gap: 0.5rem;
+  }
+
+  .calendar-grid-header {
+    font-size: 0.7rem;
+  }
+
+  .calendar-day {
+    min-height: 65px;
+    padding: 0.2rem;
+  }
+
+  .calendar-day-header {
+    font-size: 0.7rem;
+  }
+
+  .calendar-pill {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.2rem;
   }
 
   th {

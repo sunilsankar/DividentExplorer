@@ -209,6 +209,62 @@ class TestSyncWorkerHandlers(unittest.TestCase):
         self.assertEqual(len(new_children), 1)
         self.assertEqual(new_children[0].ticker, "JNJ")
 
+    def test_handle_sync_company_incremental_skips_profile_and_financials(self):
+        from datetime import datetime, timezone
+        exch = ExchangeRepository(self.session).get_or_create(code="US", name="US")
+        comp_repo = CompanyRepository(self.session)
+        comp, _ = comp_repo.upsert(
+            ticker="MSFT",
+            name="Microsoft",
+            exchange_id=exch.id,
+            sector="Technology",
+            industry="Software",
+        )
+        comp_repo.mark_synced(comp.id, timestamp=datetime.now(timezone.utc))
+        self.session.commit()
+
+        job = self.queue.enqueue(self.session, job_type="SYNC_COMPANY", ticker="MSFT", entity_type="incremental")
+        result = dispatch_job(job, self.session, self.yahoo, self.rate_limiter, self.queue)
+        self.assertIn("Incremental sync company MSFT", result)
+
+        self.yahoo.get_company_profile.assert_not_called()
+        child_jobs = self.session.query(SyncJob).filter_by(parent_job_id=job.id).all()
+        child_types = [j.job_type for j in child_jobs]
+        self.assertEqual(child_types, ["SYNC_DIVIDENDS", "SYNC_PRICES"])
+
+    def test_handle_sync_company_full_mode_fetches_profile_and_all_subjobs(self):
+        from datetime import datetime, timezone
+        exch = ExchangeRepository(self.session).get_or_create(code="US", name="US")
+        comp_repo = CompanyRepository(self.session)
+        comp, _ = comp_repo.upsert(
+            ticker="GOOGL",
+            name="Alphabet",
+            exchange_id=exch.id,
+            sector="Technology",
+            industry="Internet",
+        )
+        comp_repo.mark_synced(comp.id, timestamp=datetime.now(timezone.utc))
+        self.session.commit()
+
+        self.yahoo.get_company_profile.return_value = CompanyProfileData(
+            ticker="GOOGL",
+            name="Alphabet Inc.",
+            exchange_code="NASDAQ",
+            sector="Technology",
+            industry="Internet Content",
+            country="United States",
+            currency="USD",
+        )
+
+        job = self.queue.enqueue(self.session, job_type="SYNC_COMPANY", ticker="GOOGL", entity_type="full")
+        result = dispatch_job(job, self.session, self.yahoo, self.rate_limiter, self.queue)
+        self.assertIn("Full sync company GOOGL", result)
+
+        self.yahoo.get_company_profile.assert_called_once()
+        child_jobs = self.session.query(SyncJob).filter_by(parent_job_id=job.id).all()
+        child_types = [j.job_type for j in child_jobs]
+        self.assertEqual(child_types, ["SYNC_DIVIDENDS", "SYNC_PRICES", "SYNC_FINANCIALS"])
+
 
 if __name__ == "__main__":
     unittest.main()

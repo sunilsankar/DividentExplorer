@@ -148,6 +148,7 @@ def handle_sync_exchange(
     comp_repo = CompanyRepository(session)
     logger.info("Exchange %s discovered %d securities: %s", exchange_code, len(discovered), ", ".join(t.ticker for t in discovered))
 
+    sync_mode = (job.entity_type or "incremental").lower()
     enqueued_count = 0
     for item in discovered:
         company, _ = comp_repo.upsert(
@@ -160,7 +161,7 @@ def handle_sync_exchange(
             session=session,
             job_type="SYNC_COMPANY",
             ticker=item.ticker,
-            entity_type="company",
+            entity_type=sync_mode,
             entity_id=company.id,
             priority=8,
             parent_job_id=job.id,
@@ -181,35 +182,58 @@ def handle_sync_company(
     if not ticker:
         return "Skipped: missing ticker"
 
-    rate_limiter.wait()
-    profile = yahoo.get_company_profile(ticker)
+    sync_mode = (job.entity_type or "incremental").lower()
+    is_full = (sync_mode == "full")
+
     comp_repo = CompanyRepository(session)
-    company = _get_or_create_company(session, ticker, profile.exchange_code if profile else None)
+    existing_company = comp_repo.get_by_ticker(ticker)
 
-    if profile:
-        comp_repo.upsert(
-            ticker=ticker,
-            name=profile.name,
-            sector=profile.sector,
-            industry=profile.industry,
-            country=profile.country,
-            currency=profile.currency,
-            asset_type=profile.asset_type,
-        )
+    # ponytail: incremental skips profile & financials if company already has profile baseline
+    has_baseline = (
+        existing_company is not None
+        and existing_company.last_synced_at is not None
+        and (existing_company.sector is not None or existing_company.asset_type == "ETF")
+    )
+    is_incremental = (not is_full) and has_baseline
 
-    # Enqueue sub-jobs for dividends, prices, and financials
-    for sub_job in ["SYNC_DIVIDENDS", "SYNC_PRICES", "SYNC_FINANCIALS"]:
+    if not is_incremental:
+        rate_limiter.wait()
+        profile = yahoo.get_company_profile(ticker)
+        company = _get_or_create_company(session, ticker, profile.exchange_code if profile else None)
+
+        if profile:
+            comp_repo.upsert(
+                ticker=ticker,
+                name=profile.name,
+                sector=profile.sector,
+                industry=profile.industry,
+                country=profile.country,
+                currency=profile.currency,
+                asset_type=profile.asset_type,
+            )
+        sub_jobs = ["SYNC_DIVIDENDS", "SYNC_PRICES", "SYNC_FINANCIALS"]
+    else:
+        company = existing_company
+        # Incremental only syncs the things that change frequently: dividends and prices
+        sub_jobs = ["SYNC_DIVIDENDS", "SYNC_PRICES"]
+
+    if company:
+        comp_repo.mark_synced(company.id)
+
+    # Enqueue sub-jobs
+    for sub_job in sub_jobs:
         queue.enqueue(
             session=session,
             job_type=sub_job,
             ticker=ticker,
-            entity_type="company",
-            entity_id=company.id,
+            entity_type=sync_mode,
+            entity_id=company.id if company else None,
             priority=7,
             parent_job_id=job.parent_job_id or job.id,
         )
 
-    return f"Synced company metadata for {ticker}"
+    mode_label = "Incremental" if is_incremental else "Full"
+    return f"{mode_label} sync company {ticker}: {len(sub_jobs)} sub-jobs enqueued"
 
 
 def handle_sync_dividends(
@@ -244,6 +268,8 @@ def handle_sync_dividends(
 
     # Recalculate analytics locally
     update_analytics_for_company(session, company.id)
+    comp_repo = CompanyRepository(session)
+    comp_repo.mark_synced(company.id)
     return f"Synced {inserted_count} dividend events for {ticker}"
 
 
@@ -288,6 +314,8 @@ def handle_sync_prices(
 
     # Recalculate analytics locally with updated price
     update_analytics_for_company(session, company.id)
+    comp_repo = CompanyRepository(session)
+    comp_repo.mark_synced(company.id)
     return f"Synced {saved_count} price rows for {ticker}"
 
 
@@ -323,6 +351,8 @@ def handle_sync_financials(
     )
 
     update_analytics_for_company(session, company.id)
+    comp_repo = CompanyRepository(session)
+    comp_repo.mark_synced(company.id)
     return f"Synced financials for {ticker}"
 
 

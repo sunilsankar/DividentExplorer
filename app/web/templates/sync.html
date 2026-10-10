@@ -20,12 +20,16 @@
 <div class="card" style="margin-bottom: 1.5rem;">
   <div class="card-title">Trigger Ingestion</div>
   <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; align-items: center;">
-    <form hx-post="/sync/trigger" hx-target="#sync-status-container" hx-swap="outerHTML" style="display: flex; gap: 0.5rem; margin: 0;">
-      <input type="text" name="ticker" placeholder="Ticker (e.g. AAPL, SHEL.L)" required style="width: 190px;">
+    <form hx-post="/sync/trigger" hx-target="#sync-status-container" hx-swap="outerHTML" style="display: flex; gap: 0.5rem; margin: 0; align-items: center; flex-wrap: wrap;">
+      <input type="text" name="ticker" placeholder="Ticker (e.g. AAPL, SHEL.L)" required style="width: 170px;">
+      <select name="sync_mode" title="Sync mode: Incremental only checks new dividends & prices; Full refreshes profiles & financials" style="font-size: 0.85rem;">
+        <option value="incremental" selected>Incremental</option>
+        <option value="full">Full Sync</option>
+      </select>
       <button type="submit">Sync Ticker</button>
     </form>
 
-    <form hx-post="/sync/trigger" hx-target="#sync-status-container" hx-swap="outerHTML" style="display: flex; gap: 0.5rem; margin: 0;">
+    <form hx-post="/sync/trigger" hx-target="#sync-status-container" hx-swap="outerHTML" style="display: flex; gap: 0.5rem; margin: 0; align-items: center; flex-wrap: wrap;">
       <select name="exchange">
         <option value="NYSE">NYSE (United States)</option>
         <option value="NASDAQ">NASDAQ (United States)</option>
@@ -35,6 +39,10 @@
         <option value="FRA">XETRA / Frankfurt (FRA)</option>
         <option value="BIT">Borsa Italiana (BIT)</option>
         <option value="LSE">London Stock Exchange (LSE)</option>
+      </select>
+      <select name="sync_mode" title="Sync mode: Incremental only checks new dividends & prices; Full refreshes profiles & financials" style="font-size: 0.85rem;">
+        <option value="incremental" selected>Incremental</option>
+        <option value="full">Full Sync</option>
       </select>
       <button type="submit">Sync Exchange</button>
     </form>

@@ -188,6 +188,16 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("Market Overview", resp.text)
         self.assertIn("JNJ", resp.text)
         self.assertIn("Dividend Explorer", resp.text)
+        self.assertIn("All Exchanges", resp.text)
+
+    def test_dashboard_top_yields_by_exchange(self):
+        resp = self.client.get("/dashboard/top-yields?exchange=NYSE")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("JNJ", resp.text)
+
+        resp_empty = self.client.get("/dashboard/top-yields?exchange=UNKNOWN")
+        self.assertEqual(resp_empty.status_code, 200)
+        self.assertIn("No yield data available", resp_empty.text)
 
     def test_stocks_view(self):
         resp = self.client.get("/stocks")
@@ -307,6 +317,30 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("Dividend Calendar", resp.text)
         self.assertIn("JNJ", resp.text)
+        self.assertIn("calendar-grid", resp.text)
+        self.assertIn("All Assets", resp.text)
+
+        # Asset type filter: STOCK
+        resp_stock = self.client.get("/calendar?asset_type=STOCK")
+        self.assertEqual(resp_stock.status_code, 200)
+        self.assertIn("JNJ", resp_stock.text)
+
+        # Asset type filter: ETF
+        resp_etf = self.client.get("/calendar?asset_type=ETF")
+        self.assertEqual(resp_etf.status_code, 200)
+
+        # Currency filter
+        resp_curr = self.client.get("/calendar?currency=USD")
+        self.assertEqual(resp_curr.status_code, 200)
+        self.assertIn("JNJ", resp_curr.text)
+
+        # HTMX partial response
+        resp_htmx = self.client.get(
+            "/calendar?view=table",
+            headers={"HX-Request": "true", "HX-Target": "calendar-container"},
+        )
+        self.assertEqual(resp_htmx.status_code, 200)
+        self.assertIn("Scheduled Events", resp_htmx.text)
 
     def test_analytics_view(self):
         resp = self.client.get("/analytics")
@@ -380,6 +414,13 @@ class WebViewsTestCase(unittest.TestCase):
         # Check job enqueued in db
         job = self.session.query(SyncJob).filter_by(ticker="AAPL").first()
         self.assertIsNotNone(job)
+
+    def test_trigger_sync_full_mode(self):
+        resp = self.client.post("/sync/trigger", data={"ticker": "IBM", "sync_mode": "full"})
+        self.assertEqual(resp.status_code, 200)
+        job = self.session.query(SyncJob).filter_by(ticker="IBM").first()
+        self.assertIsNotNone(job)
+        self.assertEqual(job.entity_type, "full")
 
     def test_sync_exchanges_view(self):
         resp = self.client.get("/sync/exchanges")

@@ -40,15 +40,18 @@ class SyncService:
     ) -> Sequence[DataChange]:
         return self.change_repo.list_recent(limit=limit, entity_type=entity_type, entity_id=entity_id)
 
-    def enqueue_ticker_sync(self, ticker: str, priority: int = 5) -> SyncJob:
+    def enqueue_ticker_sync(self, ticker: str, priority: int = 5, sync_mode: str = "incremental") -> SyncJob:
         job = self.queue.enqueue(
             session=self.session,
             job_type="SYNC_COMPANY",
             ticker=ticker,
+            entity_type=sync_mode,
             priority=priority,
         )
         self.session.commit()
         return job
+
+    enqueue_company_sync = enqueue_ticker_sync
 
     # ponytail: priority 4 ensures worker drains company (8) and sub-jobs (7) before next exchange discovery
     def enqueue_exchange_sync(
@@ -56,6 +59,7 @@ class SyncService:
         exchange_code: str,
         priority: int = 4,
         deduplicate: bool = True,
+        sync_mode: str = "incremental",
     ) -> tuple[SyncJob, bool]:
         code = exchange_code.upper().strip()
         if deduplicate:
@@ -73,6 +77,7 @@ class SyncService:
             session=self.session,
             job_type="SYNC_EXCHANGE",
             ticker=code,
+            entity_type=sync_mode,
             priority=priority,
             deduplicate=deduplicate,
         )
