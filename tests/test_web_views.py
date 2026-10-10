@@ -313,6 +313,11 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("Next &rsaquo;", resp_p2.text)
         self.assertIn("Last &raquo;", resp_p2.text)
 
+        # Ensure empty string form parameters (like max_price="") do not cause HTTP 422 on pagination
+        resp_empty_params = self.client.get("/stocks/table?page=2&page_size=1&max_price=&q=&sector=&asset_type=")
+        self.assertEqual(resp_empty_params.status_code, 200)
+        self.assertIn("Page 2 of 4", resp_empty_params.text)
+
         resp_p4 = self.client.get("/stocks/table?page=4&page_size=1")
         self.assertEqual(resp_p4.status_code, 200)
         self.assertIn("&laquo; First", resp_p4.text)

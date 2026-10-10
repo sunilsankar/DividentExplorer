@@ -78,16 +78,16 @@
   <div style="display: flex; gap: 0.25rem; align-items: center;">
     {% if page > 1 %}
       <button type="button" class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;"
-              hx-get="/stocks/table?page=1" hx-target="#stock-table-container" hx-include=".form-group">&laquo; First</button>
+              hx-get="/stocks/table?page=1" hx-target="#stock-table-container" hx-include="#stocks-filter-form, .form-group">&laquo; First</button>
       <button type="button" class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;"
-              hx-get="/stocks/table?page={{ page - 1 }}" hx-target="#stock-table-container" hx-include=".form-group">&lsaquo; Prev</button>
+              hx-get="/stocks/table?page={{ page - 1 }}" hx-target="#stock-table-container" hx-include="#stocks-filter-form, .form-group">&lsaquo; Prev</button>
     {% endif %}
     <span style="padding: 0 0.5rem;">Page {{ page }} of {{ total_pages }}</span>
     {% if page < total_pages %}
       <button type="button" class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;"
-              hx-get="/stocks/table?page={{ page + 1 }}" hx-target="#stock-table-container" hx-include=".form-group">Next &rsaquo;</button>
+              hx-get="/stocks/table?page={{ page + 1 }}" hx-target="#stock-table-container" hx-include="#stocks-filter-form, .form-group">Next &rsaquo;</button>
       <button type="button" class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;"
-              hx-get="/stocks/table?page={{ total_pages }}" hx-target="#stock-table-container" hx-include=".form-group">Last &raquo;</button>
+              hx-get="/stocks/table?page={{ total_pages }}" hx-target="#stock-table-container" hx-include="#stocks-filter-form, .form-group">Last &raquo;</button>
     {% endif %}
   </div>
 </div>

@@ -126,6 +126,24 @@ def dashboard_top_yields_partial(request: Request, exchange: Optional[str] = Non
     )
 
 
+def _safe_float(val: Any) -> Optional[float]:
+    if val is None or not str(val).strip():
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_int(val: Any, default: int = 1) -> int:
+    if val is None or not str(val).strip():
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
 @router.get("/stocks", response_class=HTMLResponse)
 def stocks_view(
     request: Request,
@@ -135,11 +153,15 @@ def stocks_view(
     exchange: Optional[str] = None,
     sort: Optional[str] = "ticker",
     sync_state: Optional[str] = None,
-    max_price: Optional[float] = None,
-    page: int = 1,
-    page_size: int = 30,
+    max_price: Optional[str] = None,
+    page: Optional[str] = "1",
+    page_size: Optional[str] = "30",
     db: Session = Depends(get_db),
 ):
+    real_max_price = _safe_float(max_price)
+    real_page = max(1, _safe_int(page, default=1))
+    real_page_size = max(1, _safe_int(page_size, default=30))
+
     stock_service = StockService(db)
     res = stock_service.search_companies(
         query=q,
@@ -148,9 +170,9 @@ def stocks_view(
         exchange=exchange,
         sort_by=sort,
         sync_state=sync_state,
-        max_price=max_price,
-        page=page,
-        page_size=page_size,
+        max_price=real_max_price,
+        page=real_page,
+        page_size=real_page_size,
     )
     sectors = stock_service.get_available_sectors()
     exchanges = stock_service.list_exchanges()
@@ -163,14 +185,14 @@ def stocks_view(
             "stocks": res["items"],
             "total_count": res["total"],
             "page": res["page"],
-            "page_size": page_size,
+            "page_size": real_page_size,
             "total_pages": res["pages"],
             "query": q,
             "selected_sector": sector,
             "selected_asset_type": asset_type,
             "selected_exchange": exchange,
             "selected_sync_state": sync_state,
-            "selected_max_price": max_price,
+            "selected_max_price": real_max_price,
             "sectors": sectors,
             "exchanges": exchanges,
             "sort": sort,
@@ -187,11 +209,15 @@ def stocks_table_partial(
     exchange: Optional[str] = None,
     sort: Optional[str] = "ticker",
     sync_state: Optional[str] = None,
-    max_price: Optional[float] = None,
-    page: int = 1,
-    page_size: int = 30,
+    max_price: Optional[str] = None,
+    page: Optional[str] = "1",
+    page_size: Optional[str] = "30",
     db: Session = Depends(get_db),
 ):
+    real_max_price = _safe_float(max_price)
+    real_page = max(1, _safe_int(page, default=1))
+    real_page_size = max(1, _safe_int(page_size, default=30))
+
     stock_service = StockService(db)
     res = stock_service.search_companies(
         query=q,
@@ -200,9 +226,9 @@ def stocks_table_partial(
         exchange=exchange,
         sort_by=sort,
         sync_state=sync_state,
-        max_price=max_price,
-        page=page,
-        page_size=page_size,
+        max_price=real_max_price,
+        page=real_page,
+        page_size=real_page_size,
     )
     return templates.TemplateResponse(
         request=request,
@@ -211,12 +237,14 @@ def stocks_table_partial(
             "stocks": res["items"],
             "total_count": res["total"],
             "page": res["page"],
-            "page_size": page_size,
+            "page_size": real_page_size,
             "total_pages": res["pages"],
+            "query": q,
+            "selected_sector": sector,
             "selected_asset_type": asset_type,
             "selected_exchange": exchange,
             "selected_sync_state": sync_state,
-            "selected_max_price": max_price,
+            "selected_max_price": real_max_price,
             "sort": sort,
         },
     )

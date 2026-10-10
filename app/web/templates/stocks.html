@@ -7,7 +7,7 @@
   <h1 class="section-title">Stock Explorer</h1>
 </div>
 
-<form class="form-group" hx-get="/stocks/table" hx-target="#stock-table-container" hx-trigger="change, keyup changed delay:300ms from:#q">
+<form class="form-group" id="stocks-filter-form" hx-get="/stocks/table" hx-target="#stock-table-container" hx-trigger="change, keyup changed delay:300ms from:#q">
   <input type="text" id="q" name="q" value="{{ query or '' }}" placeholder="Search ticker or name..." style="min-width: 280px;">
   
   <select name="asset_type">
