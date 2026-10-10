@@ -144,7 +144,7 @@ def handle_sync_exchange(
     if not exch:
         exch = exch_repo.get_or_create(code=exchange_code, name=f"{exchange_code} Stock Exchange")
 
-    discovered = yahoo.discover_tickers(exchange_code)
+    discovered = yahoo.discover_tickers(exchange_code, rate_limiter=rate_limiter)
     comp_repo = CompanyRepository(session)
     logger.info("Exchange %s discovered %d securities: %s", exchange_code, len(discovered), ", ".join(t.ticker for t in discovered))
 

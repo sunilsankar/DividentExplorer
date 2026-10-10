@@ -11,6 +11,7 @@ from app.config import get_settings
 from app.db.models import Base
 from app.db.repositories import ExchangeRepository
 from app.db.session import engine, SessionLocal
+from app.sync.auto_cleanup import get_auto_cleanup_runner
 from app.web.views import router as web_router
 
 
@@ -36,7 +37,12 @@ async def lifespan(app: FastAPI):
         repo.get_or_create(code="LSE", name="London Stock Exchange", country="UK", timezone="Europe/London", currency="GBP")
         db.commit()
 
+    runner = get_auto_cleanup_runner()
+    runner.start()
+
     yield
+
+    runner.stop()
 
 
 app = FastAPI(

@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db.models import SyncJob, utcnow
 from app.db.repositories import (
     ChangeRepository,
@@ -345,6 +346,8 @@ def _build_sync_context(db: Session, tab: str = "now") -> dict[str, Any]:
     }
 
     exchanges = sync_service.get_all_exchange_progress()
+    settings = get_settings()
+    unclassified_count = sync_service.count_unclassified(grace_hours=settings.auto_cleanup_grace_hours)
 
     return {
         "active_tab": "sync_logs" if tab == "logs" else "sync",
@@ -359,6 +362,9 @@ def _build_sync_context(db: Session, tab: str = "now") -> dict[str, Any]:
         "recent_runs": sync_service.get_recent_runs(limit=10),
         "queue_jobs": now_jobs if tab == "now" else (log_jobs if tab == "logs" else recent_jobs),
         "exchanges": exchanges,
+        "unclassified_count": unclassified_count,
+        "auto_cleanup_enabled": settings.auto_cleanup_enabled,
+        "auto_cleanup_grace_hours": settings.auto_cleanup_grace_hours,
         "now": utcnow(),
         "tab": tab,
     }
@@ -445,6 +451,19 @@ def retry_throttled(request: Request, tab: str = "now", db: Session = Depends(ge
         j.updated_at = now
     db.commit()
     return sync_status_partial(request=request, tab=tab, db=db)
+
+
+@router.post("/sync/cleanup-unclassified", response_class=HTMLResponse)
+def cleanup_unclassified(request: Request, tab: str = "now", db: Session = Depends(get_db)):
+    settings = get_settings()
+    sync_service = SyncService(db)
+    deleted = sync_service.cleanup_unclassified(grace_hours=settings.auto_cleanup_grace_hours)
+    context = _build_sync_context(db, tab=tab)
+    if deleted > 0:
+        context["cleanup_notice"] = f"Removed {deleted} unclassified stock{'s' if deleted != 1 else ''}."
+    else:
+        context["cleanup_notice"] = "No unclassified stocks older than the grace period were found."
+    return templates.TemplateResponse(request=request, name="partials/sync_status.html", context=context)
 
 
 @router.post("/sync/trigger-all-exchanges", response_class=HTMLResponse)

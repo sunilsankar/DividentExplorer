@@ -9,6 +9,9 @@ class Settings:
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///data/dividend-explorer.db")
     request_delay_seconds: float = float(os.getenv("REQUEST_DELAY_SECONDS", "1.0"))
     max_retries: int = int(os.getenv("MAX_RETRIES", "3"))
+    auto_cleanup_enabled: bool = os.getenv("AUTO_CLEANUP_ENABLED", "false").lower() in ("true", "1", "yes")
+    auto_cleanup_interval_minutes: int = int(os.getenv("AUTO_CLEANUP_INTERVAL_MINUTES", "60"))
+    auto_cleanup_grace_hours: int = int(os.getenv("AUTO_CLEANUP_GRACE_HOURS", "24"))
 
     @property
     def sqlite_path(self) -> Path | None:

@@ -194,6 +194,15 @@ class SyncService:
             })
         return rows
 
+    def cleanup_unclassified(self, grace_hours: int = 24) -> int:
+        deleted = CompanyRepository(self.session).delete_unclassified(grace_hours=grace_hours)
+        if deleted > 0:
+            self.session.commit()
+        return deleted
+
+    def count_unclassified(self, grace_hours: int = 24) -> int:
+        return CompanyRepository(self.session).count_unclassified(grace_hours=grace_hours)
+
     # Aliases for convenience
     get_queue_status = get_queue_stats
     enqueue_company_sync = enqueue_ticker_sync

@@ -182,6 +182,19 @@ DEFAULT_EXCHANGE_TICKERS: Dict[str, List[DiscoveredTicker]] = {
 }
 
 
+# ponytail: mapping from app exchange code to Yahoo screener exchange codes; ceiling is manual dict, upgrade to config or DB if dynamically registered exchanges needed
+EXCHANGE_SCREENER_CODES: Dict[str, List[str]] = {
+    "NYSE": ["NYQ", "ASE"],
+    "NASDAQ": ["NMS", "NGM", "NCM"],
+    "ARCA": ["PCX"],
+    "AMS": ["AMS"],
+    "PAR": ["PAR", "ENX"],
+    "FRA": ["FRA", "GER"],
+    "BIT": ["MIL"],
+    "LSE": ["LSE", "IOB"],
+}
+
+
 class YahooClient:
     """Minimal yfinance wrapper with caching and rate limit / throttling detection."""
 
@@ -207,24 +220,82 @@ class YahooClient:
             raise UpstreamThrottledError(f"Yahoo Finance rate limit hit: {err}")
         raise YahooProviderError(f"Yahoo Finance error: {err}") from err
 
-    def discover_tickers(self, exchange_code: str) -> List[DiscoveredTicker]:
+    def _fetch_screen_results(
+        self,
+        query: Any,
+        exchange_code: str,
+        seen: set[str],
+        out_results: List[DiscoveredTicker],
+        rate_limiter: Optional[Any] = None,
+        default_asset_type: str = "STOCK",
+    ) -> None:
+        offset = 0
+        while True:
+            if offset > 0 and rate_limiter:
+                rate_limiter.wait()
+            try:
+                res = yf.screen(query, size=250, offset=offset)
+            except Exception as e:
+                self._check_error(e)
+                break
+
+            quotes = res.get("quotes", []) if isinstance(res, dict) else []
+            if not quotes:
+                break
+
+            for item in quotes:
+                sym = (item.get("symbol") or "").strip().upper()
+                if not sym or sym in seen:
+                    continue
+                seen.add(sym)
+                name = item.get("shortName") or item.get("longName") or sym
+                quote_type = (item.get("quoteType") or "").upper()
+                asset_type = "ETF" if (default_asset_type == "ETF" or quote_type in ("ETF", "MUTUALFUND")) else "STOCK"
+                out_results.append(DiscoveredTicker(ticker=sym, name=name, exchange=exchange_code, asset_type=asset_type))
+
+            if len(quotes) < 250 or (isinstance(res, dict) and offset + len(quotes) >= res.get("total", 0)):
+                break
+            offset += len(quotes)
+
+    def discover_tickers(self, exchange_code: str, rate_limiter: Optional[Any] = None) -> List[DiscoveredTicker]:
         code = exchange_code.upper()
         cache_key = f"discover:{code}"
         cached = self._get_cached(cache_key)
         if cached is not None:
             return cached
 
-        # Check default curated list first
-        results: List[DiscoveredTicker] = list(DEFAULT_EXCHANGE_TICKERS.get(code, []))
-        # ponytail: dedup by symbol; screener/curated lists can have duplicate tickers across sub-markets
+        results: List[DiscoveredTicker] = []
         seen: set[str] = set()
-        unique_results: List[DiscoveredTicker] = []
-        for t in results:
-            sym = t.ticker.strip().upper()
-            if sym not in seen:
-                seen.add(sym)
-                unique_results.append(t)
-        results = unique_results
+
+        # Try live yfinance screener discovery
+        yf_codes = EXCHANGE_SCREENER_CODES.get(code, [code])
+        try:
+            from yfinance import ETFQuery, EquityQuery
+
+            # 1. Dividend-paying equities
+            q_eq = EquityQuery("and", [
+                EquityQuery("is-in", ["exchange", *yf_codes]),
+                EquityQuery("gt", ["dividendyield", 0]),
+            ])
+            self._fetch_screen_results(q_eq, code, seen, results, rate_limiter)
+
+            # 2. ETFs (no dividendyield filter on ETFQuery)
+            q_etf = ETFQuery("is-in", ["exchange", *yf_codes])
+            self._fetch_screen_results(q_etf, code, seen, results, rate_limiter, default_asset_type="ETF")
+        except UpstreamThrottledError:
+            raise
+        except Exception:
+            # ponytail: screener failure falls back to curated static list; ceiling is static list, upgrade to error alerting if monitoring needed
+            pass
+
+        # Fallback to curated seed list if screener yielded no results
+        if not results:
+            for t in DEFAULT_EXCHANGE_TICKERS.get(code, []):
+                sym = t.ticker.strip().upper()
+                if sym not in seen:
+                    seen.add(sym)
+                    results.append(t)
+
         self._set_cached(cache_key, results)
         return results
 

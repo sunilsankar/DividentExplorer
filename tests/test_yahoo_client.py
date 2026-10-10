@@ -33,17 +33,46 @@ class TestYahooClient(unittest.TestCase):
         self.assertIsNone(clean_str("   "))
         self.assertEqual(clean_str("  AAPL  "), "AAPL")
 
-    def test_discover_tickers_curated_fallback(self):
+    @patch("app.yahoo.client.yf.screen")
+    def test_discover_tickers_screener(self, mock_screen):
+        mock_screen.side_effect = [
+            # First call for equities
+            {"quotes": [{"symbol": "ASML.AS", "shortName": "ASML Holding", "quoteType": "EQUITY"}], "total": 1},
+            # Second call for ETFs
+            {"quotes": [{"symbol": "ZETH.AS", "shortName": "ZETH ETP", "quoteType": "ETF"}], "total": 1},
+        ]
+        client = YahooClient()
+        res = client.discover_tickers("AMS")
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[0].ticker, "ASML.AS")
+        self.assertEqual(res[0].asset_type, "STOCK")
+        self.assertEqual(res[1].ticker, "ZETH.AS")
+        self.assertEqual(res[1].asset_type, "ETF")
+
+    @patch("app.yahoo.client.yf.screen")
+    def test_discover_tickers_curated_fallback_on_error(self, mock_screen):
+        mock_screen.side_effect = Exception("Yahoo screener down")
         client = YahooClient()
         nyse = client.discover_tickers("NYSE")
         self.assertTrue(len(nyse) > 0)
         self.assertTrue(any(t.ticker == "JNJ" for t in nyse))
 
-        nasdaq = client.discover_tickers("NASDAQ")
-        self.assertTrue(len(nasdaq) > 0)
-        self.assertTrue(any(t.ticker == "MSFT" for t in nasdaq))
+    @patch("app.yahoo.client.yf.screen")
+    def test_discover_tickers_pagination_and_rate_limiter(self, mock_screen):
+        mock_screen.side_effect = [
+            {"quotes": [{"symbol": f"S{i}", "shortName": f"Stock {i}", "quoteType": "EQUITY"} for i in range(250)], "total": 260},
+            {"quotes": [{"symbol": f"S{i}", "shortName": f"Stock {i}", "quoteType": "EQUITY"} for i in range(250, 260)], "total": 260},
+            {"quotes": [], "total": 0},
+        ]
+        rate_limiter = MagicMock()
+        client = YahooClient()
+        res = client.discover_tickers("AMS", rate_limiter=rate_limiter)
+        self.assertEqual(len(res), 260)
+        rate_limiter.wait.assert_called_once()
 
-    def test_client_caching(self):
+    @patch("app.yahoo.client.yf.screen")
+    def test_client_caching(self, mock_screen):
+        mock_screen.return_value = {"quotes": [], "total": 0}
         client = YahooClient(cache_ttl_seconds=300)
         res1 = client.discover_tickers("NYSE")
         res2 = client.discover_tickers("NYSE")

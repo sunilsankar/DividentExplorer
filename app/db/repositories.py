@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional, Sequence
-from sqlalchemy import desc, exists, func, select
+from sqlalchemy import delete, desc, exists, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -290,6 +290,53 @@ class CompanyRepository:
             stmt = stmt.where(Company.sector == sector)
         stmt = stmt.distinct().order_by(Company.industry)
         return [ind for ind in self.session.execute(stmt).scalars().all() if ind]
+
+    def _unclassified_filter(self, grace_hours: int = 24) -> Any:
+        cutoff = utcnow() - timedelta(hours=grace_hours)
+        # ponytail: ETFs (asset_type == 'ETF') do not have sector/industry in Yahoo; unclassified targets stocks missing classification
+        unclass_condition = (
+            (
+                (Company.asset_type != "ETF")
+                & (
+                    Company.sector.is_(None)
+                    | Company.industry.is_(None)
+                    | Company.country.is_(None)
+                    | Company.currency.is_(None)
+                )
+            )
+            | ((Company.asset_type == "ETF") & Company.currency.is_(None))
+        )
+        return unclass_condition & (
+            func.coalesce(Company.last_synced_at, Company.created_at) < cutoff
+        )
+
+    def count_unclassified(self, grace_hours: int = 24) -> int:
+        stmt = select(func.count(Company.id)).where(self._unclassified_filter(grace_hours))
+        return self.session.execute(stmt).scalar() or 0
+
+    def delete_unclassified(self, grace_hours: int = 24) -> int:
+        stmt = select(Company.id).where(self._unclassified_filter(grace_hours))
+        ids = list(self.session.execute(stmt).scalars().all())
+        if not ids:
+            return 0
+        self.session.execute(
+            delete(CompanyRelationship).where(
+                CompanyRelationship.company_id.in_(ids)
+                | CompanyRelationship.related_company_id.in_(ids)
+            )
+        )
+        self.session.execute(delete(DividendEvent).where(DividendEvent.company_id.in_(ids)))
+        self.session.execute(delete(DividendMetric).where(DividendMetric.company_id.in_(ids)))
+        self.session.execute(delete(FinancialMetric).where(FinancialMetric.company_id.in_(ids)))
+        self.session.execute(delete(PriceHistory).where(PriceHistory.company_id.in_(ids)))
+        self.session.execute(
+            delete(SyncJob).where(
+                (SyncJob.entity_type == "company") & (SyncJob.entity_id.in_(ids))
+            )
+        )
+        self.session.execute(delete(Company).where(Company.id.in_(ids)))
+        self.session.flush()
+        return len(ids)
 
 
 class DividendRepository:

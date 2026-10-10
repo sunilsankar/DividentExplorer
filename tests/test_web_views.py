@@ -437,6 +437,46 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIsNotNone(j2)
         self.assertNotEqual(j1.id, j2.id)
 
+    def test_cleanup_unclassified_endpoint(self):
+        from datetime import datetime, timezone, timedelta
+        from app.db.models import Company
+        old_time = datetime.now(timezone.utc) - timedelta(hours=48)
+        unclass = Company(
+            ticker="STALESTOCK",
+            exchange_id=1,
+            name="Stale Stock",
+            sector=None,
+            industry=None,
+            country=None,
+            currency=None,
+            asset_type="STOCK",
+            created_at=old_time,
+            last_synced_at=old_time,
+        )
+        self.session.add(unclass)
+        self.session.commit()
+
+        # Check status contains unclassified card
+        resp = self.client.get("/sync/status")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Unclassified Stocks:", resp.text)
+        self.assertIn("1 found", resp.text)
+
+        # Trigger cleanup
+        resp_clean = self.client.post("/sync/cleanup-unclassified")
+        self.assertEqual(resp_clean.status_code, 200)
+        self.assertIn("Removed 1 unclassified stock", resp_clean.text)
+
+        # Verify DB deletion
+        self.session.expire_all()
+        check = self.session.query(Company).filter_by(ticker="STALESTOCK").first()
+        self.assertIsNone(check)
+
+        # Trigger again when none exist
+        resp_empty = self.client.post("/sync/cleanup-unclassified")
+        self.assertEqual(resp_empty.status_code, 200)
+        self.assertIn("No unclassified stocks older than the grace period were found.", resp_empty.text)
+
 
 if __name__ == "__main__":
     unittest.main()

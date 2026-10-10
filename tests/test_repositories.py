@@ -1,9 +1,9 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import unittest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import Base
+from app.db.models import Base, Company, CompanyRelationship, DividendEvent, PriceHistory, SyncJob
 from app.db.repositories import (
     ChangeRepository,
     CompanyRepository,
@@ -275,6 +275,114 @@ class RepositoryTestCase(unittest.TestCase):
         repo.set_value("last_sync_key", '{"status": "updated"}')
         self.session.commit()
         self.assertEqual(repo.get_value("last_sync_key"), '{"status": "updated"}')
+
+    def test_unclassified_count_and_delete(self) -> None:
+        ex_repo = ExchangeRepository(self.session)
+        comp_repo = CompanyRepository(self.session)
+        ex = ex_repo.upsert(code="NYSE", name="New York Stock Exchange", country="USA")
+        self.session.commit()
+
+        old_time = datetime.now(timezone.utc) - timedelta(hours=48)
+        recent_time = datetime.now(timezone.utc) - timedelta(minutes=30)
+
+        # 1. Normal classified stock
+        c_good, _ = comp_repo.upsert(
+            ticker="GOOD",
+            exchange_id=ex.id,
+            name="Good Stock",
+            sector="Technology",
+            industry="Software",
+            country="USA",
+            currency="USD",
+            asset_type="STOCK",
+        )
+        c_good.last_synced_at = old_time
+
+        # 2. Old unclassified stock (missing sector)
+        c_old_unclass = Company(
+            ticker="BAD1",
+            exchange_id=ex.id,
+            name="Unclassified Stock 1",
+            sector=None,
+            industry=None,
+            country="USA",
+            currency="USD",
+            asset_type="STOCK",
+            created_at=old_time,
+            last_synced_at=old_time,
+        )
+        self.session.add(c_old_unclass)
+
+        # 3. Recent unclassified stock (< 24h grace period)
+        c_recent_unclass = Company(
+            ticker="BAD2",
+            exchange_id=ex.id,
+            name="Recent Unclassified Stock 2",
+            sector=None,
+            industry=None,
+            country=None,
+            currency=None,
+            asset_type="STOCK",
+            created_at=recent_time,
+            last_synced_at=None,
+        )
+        self.session.add(c_recent_unclass)
+
+        # 4. Legitimate ETF (no sector/industry/country, but valid ETF)
+        c_etf = Company(
+            ticker="SCHD",
+            exchange_id=ex.id,
+            name="Schwab US Dividend Equity ETF",
+            sector=None,
+            industry=None,
+            country=None,
+            currency="USD",
+            asset_type="ETF",
+            created_at=old_time,
+            last_synced_at=old_time,
+        )
+        self.session.add(c_etf)
+
+        # 5. Invalid ETF (missing currency)
+        c_bad_etf = Company(
+            ticker="BADETF",
+            exchange_id=ex.id,
+            name="Corrupted ETF",
+            sector=None,
+            industry=None,
+            country=None,
+            currency=None,
+            asset_type="ETF",
+            created_at=old_time,
+            last_synced_at=old_time,
+        )
+        self.session.add(c_bad_etf)
+        self.session.commit()
+
+        # Add child records for c_old_unclass to verify cascading / child cleanup
+        self.session.add(CompanyRelationship(company_id=c_old_unclass.id, related_company_id=c_good.id, relationship_type="competitor"))
+        self.session.add(DividendEvent(company_id=c_old_unclass.id, ex_date=date(2025, 1, 1), amount=1.0, currency="USD"))
+        self.session.add(PriceHistory(company_id=c_old_unclass.id, date=date(2025, 1, 1), close=10.0))
+        self.session.add(SyncJob(job_type="SYNC_COMPANY", ticker="BAD1", entity_type="company", entity_id=c_old_unclass.id))
+        self.session.commit()
+
+        # Count with 24h grace period: should find BAD1 and BADETF (c_recent_unclass is within grace; SCHD is valid ETF)
+        count = comp_repo.count_unclassified(grace_hours=24)
+        self.assertEqual(count, 2)
+
+        # Delete with 24h grace period
+        deleted = comp_repo.delete_unclassified(grace_hours=24)
+        self.session.commit()
+        self.assertEqual(deleted, 2)
+
+        # Verify BAD1 and BADETF are gone
+        self.assertIsNone(comp_repo.get_by_ticker("BAD1"))
+        self.assertIsNone(comp_repo.get_by_ticker("BADETF"))
+
+        # Verify GOOD, BAD2 (under grace), and SCHD (valid ETF) still exist
+        self.assertIsNotNone(comp_repo.get_by_ticker("GOOD"))
+        self.assertIsNotNone(comp_repo.get_by_ticker("BAD2"))
+        self.assertIsNotNone(comp_repo.get_by_ticker("SCHD"))
 
 
 if __name__ == "__main__":

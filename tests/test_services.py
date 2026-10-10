@@ -124,6 +124,36 @@ class ServicesTestCase(unittest.TestCase):
         self.assertFalse(dedup3)
         self.assertNotEqual(job1.id, job3.id)
 
+    def test_sync_service_cleanup_unclassified(self):
+        ex = ExchangeRepository(self.session).upsert(code="NYSE", name="New York Stock Exchange")
+        self.session.commit()
+
+        from datetime import datetime, timezone, timedelta
+        from app.db.models import Company
+        old_time = datetime.now(timezone.utc) - timedelta(hours=48)
+
+        unclass = Company(
+            ticker="STALEUNCLASS",
+            exchange_id=ex.id,
+            name="Stale Unclassified",
+            sector=None,
+            industry=None,
+            country=None,
+            currency=None,
+            asset_type="STOCK",
+            created_at=old_time,
+            last_synced_at=old_time,
+        )
+        self.session.add(unclass)
+        self.session.commit()
+
+        count = self.sync_service.count_unclassified(grace_hours=24)
+        self.assertEqual(count, 1)
+
+        deleted = self.sync_service.cleanup_unclassified(grace_hours=24)
+        self.assertEqual(deleted, 1)
+        self.assertEqual(self.sync_service.count_unclassified(grace_hours=24), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
