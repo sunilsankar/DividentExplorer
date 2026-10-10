@@ -38,8 +38,11 @@ class TestYahooClient(unittest.TestCase):
         mock_screen.side_effect = [
             # First call for equities
             {"quotes": [{"symbol": "ASML.AS", "shortName": "ASML Holding", "quoteType": "EQUITY"}], "total": 1},
-            # Second call for ETFs
-            {"quotes": [{"symbol": "ZETH.AS", "shortName": "ZETH ETP", "quoteType": "ETF"}], "total": 1},
+            # Second call for ETFs: one dividend payer, one non-payer (should be filtered out)
+            {"quotes": [
+                {"symbol": "ZETH.AS", "shortName": "ZETH ETP", "quoteType": "ETF", "trailingAnnualDividendYield": 0.02},
+                {"symbol": "ZERO.AS", "shortName": "Zero Div ETF", "quoteType": "ETF", "trailingAnnualDividendYield": 0.0},
+            ], "total": 2},
         ]
         client = YahooClient()
         res = client.discover_tickers("AMS")

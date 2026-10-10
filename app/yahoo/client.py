@@ -247,10 +247,22 @@ class YahooClient:
                 sym = (item.get("symbol") or "").strip().upper()
                 if not sym or sym in seen:
                     continue
-                seen.add(sym)
-                name = item.get("shortName") or item.get("longName") or sym
                 quote_type = (item.get("quoteType") or "").upper()
                 asset_type = "ETF" if (default_asset_type == "ETF" or quote_type in ("ETF", "MUTUALFUND")) else "STOCK"
+
+                # ponytail: screener ETFQuery lacks dividend yield filter; filter payload so only dividend-paying ETFs are enqueued. Upgrade to full profile check if screener yield is omitted for newly-paying ETFs
+                if asset_type == "ETF":
+                    div_y = (
+                        item.get("trailingAnnualDividendYield")
+                        or item.get("dividendYield")
+                        or item.get("trailingAnnualDividendRate")
+                        or 0.0
+                    )
+                    if not (div_y and div_y > 0):
+                        continue
+
+                seen.add(sym)
+                name = item.get("shortName") or item.get("longName") or sym
                 out_results.append(DiscoveredTicker(ticker=sym, name=name, exchange=exchange_code, asset_type=asset_type))
 
             if len(quotes) < 250 or (isinstance(res, dict) and offset + len(quotes) >= res.get("total", 0)):
