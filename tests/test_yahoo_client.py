@@ -122,6 +122,43 @@ class TestYahooClient(unittest.TestCase):
         divs = client.get_dividends("NODIV")
         self.assertEqual(divs, [])
 
+    @patch("app.yahoo.client.yf.Ticker")
+    def test_get_financials_currency_conversion(self, mock_ticker):
+        instance = MagicMock()
+        instance.get_info.return_value = {
+            "currency": "EUR",
+            "financialCurrency": "JPY",
+            "marketCap": 3500000000.0,
+            "freeCashflow": 35832373248.0,
+            "operatingCashflow": 50000000000.0,
+        }
+        mock_ticker.return_value = instance
+
+        client = YahooClient()
+        # Mock get_fx_rate to return 0.0056395 (1 JPY = 0.0056395 EUR)
+        with patch.object(client, "get_fx_rate", return_value=0.0056395):
+            fin = client.get_financials("TYR.F")
+            self.assertIsNotNone(fin.free_cash_flow)
+            # 35.83B JPY * 0.0056395 = ~202,076,668 EUR
+            self.assertAlmostEqual(fin.free_cash_flow, 202076668.0, delta=1000.0)
+
+    @patch("app.yahoo.client.yf.Ticker")
+    def test_get_financials_unsupported_fx_drops_mismatched_currencies(self, mock_ticker):
+        instance = MagicMock()
+        instance.get_info.return_value = {
+            "currency": "EUR",
+            "financialCurrency": "XYZ",
+            "marketCap": 1000000.0,
+            "freeCashflow": 500000.0,
+        }
+        mock_ticker.return_value = instance
+
+        client = YahooClient()
+        with patch.object(client, "get_fx_rate", return_value=None):
+            fin = client.get_financials("UNKNOWN_FX")
+            # Dropped to None to prevent 305x unit mismatch corruption
+            self.assertIsNone(fin.free_cash_flow)
+
     def test_discover_tickers_dedups_results(self):
         from app.yahoo.client import DiscoveredTicker
         with patch.dict("app.yahoo.client.DEFAULT_EXCHANGE_TICKERS", {

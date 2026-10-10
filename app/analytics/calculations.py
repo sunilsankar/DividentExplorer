@@ -99,10 +99,30 @@ def calculate_dividend_metrics(
     trailing_yield = _safe_div(annual_dividend, latest_price) if latest_price and latest_price > 0 else None
     current_yield = trailing_yield
 
-    # Forward yield: latest payment multiplied by 4 (quarterly estimate) or annual
+    # ponytail: infer payment frequency multiplier from trailing 12M or latest year event count; upgrade to calendar recurrence analysis if erratic
+    t12m_count = sum(
+        1 for e in valid_events
+        if ((e.ex_date and one_year_ago <= e.ex_date <= today) or (not e.ex_date and e.pay_date and one_year_ago <= e.pay_date <= today))
+    )
+    if t12m_count == 0:
+        past_years = [y for y in sorted(annual_totals.keys(), reverse=True) if y <= today.year and annual_totals[y] > 0]
+        if past_years:
+            latest_year = past_years[0]
+            t12m_count = sum(1 for e in valid_events if (e.ex_date or e.pay_date).year == latest_year)
+
+    if t12m_count == 1:
+        freq_mult = 1.0
+    elif t12m_count == 2:
+        freq_mult = 2.0
+    elif t12m_count >= 10:
+        freq_mult = 12.0
+    else:
+        freq_mult = 4.0  # default quarterly
+
+    # Forward yield: latest payment multiplied by frequency or annual
     sorted_events = sorted(valid_events, key=lambda x: (x.ex_date or x.pay_date or date.min), reverse=True)
     latest_event = sorted_events[0] if sorted_events else None
-    forward_dividend = (latest_event.amount * 4) if (latest_event and latest_event.amount) else annual_dividend
+    forward_dividend = (latest_event.amount * freq_mult) if (latest_event and latest_event.amount) else annual_dividend
     forward_yield = _safe_div(forward_dividend, latest_price) if latest_price and latest_price > 0 else None
 
     # Years paying (consecutive years with dividends ending at last completed year)

@@ -60,6 +60,69 @@ class TestAnalyticsCalculations(unittest.TestCase):
         self.assertGreater(res.quality_score, 0)
         self.assertLessEqual(res.quality_score, 100)
 
+    def test_semiannual_frequency_and_forward_yield(self):
+        # Model Toyo Tires (TYR.F): semiannual payments (June and December)
+        as_of = date(2026, 10, 1)
+        events = [
+            DividendEvent(ex_date=date(2026, 6, 27), amount=0.39, status="ACTUAL"),
+            DividendEvent(ex_date=date(2025, 12, 28), amount=0.28, status="ACTUAL"),
+            DividendEvent(ex_date=date(2025, 6, 26), amount=0.33, status="ACTUAL"),
+            DividendEvent(ex_date=date(2024, 12, 27), amount=0.25, status="ACTUAL"),
+        ]
+        res = calculate_dividend_metrics(
+            events=events,
+            latest_price=20.0,
+            as_of=as_of,
+        )
+        # Trailing 12 months has 2 payments: 0.39 + 0.28 = 0.67
+        self.assertEqual(res.annual_dividend, 0.67)
+        # Forward dividend should use semiannual multiplier (2 * 0.39 = 0.78), NOT quarterly (4 * 0.39 = 1.56)
+        # Forward yield: 0.78 / 20.0 = 0.039 (3.90%)
+        self.assertAlmostEqual(res.forward_yield, 0.039, places=3)
+
+    def test_fcf_coverage_calculation(self):
+        # 117.2M EUR estimated payout, 202.1M EUR FCF -> ~1.72x coverage
+        events = [
+            DividendEvent(ex_date=date(2025, 12, 1), amount=0.39, status="ACTUAL"),
+            DividendEvent(ex_date=date(2025, 6, 1), amount=0.28, status="ACTUAL"),
+        ]
+        fin = FinancialMetric(
+            market_cap=3500000000.0,
+            free_cash_flow=202000000.0,
+        )
+        res = calculate_dividend_metrics(
+            events=events,
+            latest_price=20.0,
+            financial=fin,
+            as_of=date(2026, 1, 1),
+        )
+        # Annual div: 0.67, price: 20.0 -> div yield: 0.0335
+        # Total payout: 0.0335 * 3.5B = 117.25M
+        # Coverage: 202M / 117.25M ≈ 1.72x
+        self.assertIsNotNone(res.fcf_coverage)
+        self.assertAlmostEqual(res.fcf_coverage, 1.72, places=1)
+
+    def test_three_year_dividend_cagr(self):
+        # 2022: 0.40, 2023: 0.48, 2024: 0.58, 2025: 0.67
+        # 3Y CAGR from 2022 to 2025: (0.67 / 0.40) ** (1/3) - 1 ≈ 18.76%
+        events = [
+            DividendEvent(ex_date=date(2025, 12, 1), amount=0.35, status="ACTUAL"),
+            DividendEvent(ex_date=date(2025, 6, 1), amount=0.32, status="ACTUAL"),
+            DividendEvent(ex_date=date(2024, 12, 1), amount=0.30, status="ACTUAL"),
+            DividendEvent(ex_date=date(2024, 6, 1), amount=0.28, status="ACTUAL"),
+            DividendEvent(ex_date=date(2023, 12, 1), amount=0.25, status="ACTUAL"),
+            DividendEvent(ex_date=date(2023, 6, 1), amount=0.23, status="ACTUAL"),
+            DividendEvent(ex_date=date(2022, 12, 1), amount=0.21, status="ACTUAL"),
+            DividendEvent(ex_date=date(2022, 6, 1), amount=0.19, status="ACTUAL"),
+        ]
+        res = calculate_dividend_metrics(
+            events=events,
+            latest_price=20.0,
+            as_of=date(2026, 1, 1),
+        )
+        self.assertIsNotNone(res.growth_3y)
+        self.assertAlmostEqual(res.growth_3y, 0.1876, places=2)
+
     def test_missing_data_cannot_earn_full_marks(self):
         # 25 years paying, high yield, high growth, but NO financial data
         events = [

@@ -170,6 +170,27 @@ class DividendMetric(Base):
 
     @property
     def payment_frequency(self) -> str:
+        # ponytail: infer frequency from event count in latest completed year; upgrade to calendar analysis if irregular
+        if not self.company or not self.company.dividend_events:
+            return "Quarterly"
+        actual_events = [e for e in self.company.dividend_events if e.status == "ACTUAL" and e.ex_date]
+        if not actual_events:
+            return "Quarterly"
+        by_year: dict[int, int] = {}
+        for e in actual_events:
+            by_year[e.ex_date.year] = by_year.get(e.ex_date.year, 0) + 1
+        today_year = date.today().year
+        completed_years = [y for y in sorted(by_year.keys()) if y < today_year]
+        ref_year = completed_years[-1] if completed_years else max(by_year.keys())
+        count = by_year[ref_year]
+        if count == 1:
+            return "Annual"
+        elif count == 2:
+            return "Semiannual"
+        elif count in (3, 4):
+            return "Quarterly"
+        elif count >= 10:
+            return "Monthly"
         return "Quarterly"
 
 

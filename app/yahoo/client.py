@@ -362,6 +362,17 @@ class YahooClient:
             # Lightweight dividends series (Date index -> float amount)
             div_series = t.dividends
             if div_series is not None and not div_series.empty:
+                # Infer frequency from event counts in latest active year
+                by_yr: dict[int, int] = {}
+                for idx in div_series.index:
+                    d = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
+                    by_yr[d.year] = by_yr.get(d.year, 0) + 1
+                # Infer frequency from event counts in latest completed year
+                completed_years = [y for y in sorted(by_yr.keys()) if y < date.today().year]
+                ref_year = completed_years[-1] if completed_years else (max(by_yr.keys()) if by_yr else None)
+                cnt = by_yr[ref_year] if ref_year else 0
+                freq_name = "Annual" if cnt == 1 else "Semiannual" if cnt == 2 else "Monthly" if cnt >= 10 else "Quarterly"
+
                 for idx, amount in div_series.items():
                     amt = clean_float(amount)
                     if amt is None or amt <= 0:
@@ -379,6 +390,7 @@ class YahooClient:
                             ex_date=ex_d,
                             pay_date=None,  # Missing source data must remain None
                             amount=amt,
+                            frequency=freq_name,
                             status="ACTUAL",
                         )
                     )
@@ -459,6 +471,50 @@ class YahooClient:
             self._check_error(e)
             return []
 
+    def get_fx_rate(self, from_curr: Optional[str], to_curr: Optional[str]) -> Optional[float]:
+        if not from_curr or not to_curr:
+            return 1.0
+        if from_curr.upper() == to_curr.upper() and from_curr == to_curr:
+            return 1.0
+
+        cache_key = f"fx:{from_curr}:{to_curr}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+
+        # Handle sub-units like GBp (pence) -> 1 GBP = 100 GBp
+        mult = 1.0
+        base_from = from_curr.upper()
+        base_to = to_curr.upper()
+        if from_curr == "GBp":
+            base_from = "GBP"
+            mult /= 100.0
+        if to_curr == "GBp":
+            base_to = "GBP"
+            mult *= 100.0
+
+        if base_from == base_to:
+            self._set_cached(cache_key, mult)
+            return mult
+
+        try:
+            pair = f"{base_from}{base_to}=X"
+            t = yf.Ticker(pair)
+            rate = None
+            if hasattr(t, "fast_info"):
+                rate = clean_float(getattr(t.fast_info, "last_price", None))
+            if rate is None:
+                info = t.get_info() or {}
+                rate = clean_float(info.get("previousClose") or info.get("regularMarketPrice"))
+            if rate and rate > 0:
+                final_rate = rate * mult
+                self._set_cached(cache_key, final_rate)
+                return final_rate
+        except Exception:
+            pass
+
+        return None
+
     def get_financials(self, ticker: str) -> FinancialData:
         sym = ticker.upper().strip()
         cache_key = f"financials:{sym}"
@@ -470,6 +526,25 @@ class YahooClient:
             t = yf.Ticker(sym)
             info = t.get_info() or {}
 
+            currency = clean_str(info.get("currency"))
+            financial_currency = clean_str(info.get("financialCurrency"))
+
+            raw_fcf = clean_float(info.get("freeCashflow"))
+            raw_ocf = clean_float(info.get("operatingCashflow"))
+
+            # ponytail: convert cash flows to trading currency if financial statements report in foreign currency
+            fcf = raw_fcf
+            ocf = raw_ocf
+            if financial_currency and currency and financial_currency.upper() != currency.upper():
+                fx_rate = self.get_fx_rate(financial_currency, currency)
+                if fx_rate is not None and fx_rate > 0:
+                    fcf = clean_float(raw_fcf * fx_rate) if raw_fcf is not None else None
+                    ocf = clean_float(raw_ocf * fx_rate) if raw_ocf is not None else None
+                else:
+                    # Drop mismatched currencies when FX rate is unavailable to avoid unit mismatch errors (e.g. 305x coverage)
+                    fcf = None
+                    ocf = None
+
             fin = FinancialData(
                 market_cap=clean_float(info.get("marketCap")),
                 pe_ratio=clean_float(info.get("trailingPE")),
@@ -480,8 +555,8 @@ class YahooClient:
                 roa=clean_float(info.get("returnOnAssets")),
                 earnings_growth=clean_float(info.get("earningsGrowth")),
                 revenue_growth=clean_float(info.get("revenueGrowth")),
-                free_cash_flow=clean_float(info.get("freeCashflow")),
-                operating_cash_flow=clean_float(info.get("operatingCashflow")),
+                free_cash_flow=fcf,
+                operating_cash_flow=ocf,
             )
             self._set_cached(cache_key, fin)
             return fin
