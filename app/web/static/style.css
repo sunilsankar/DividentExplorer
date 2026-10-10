@@ -460,6 +460,10 @@ button:hover {
   border-color: rgba(59, 130, 246, 0.25);
   color: #60a5fa;
 }
+.calendar-pill.pill-projected {
+  border-style: dashed;
+  opacity: 0.85;
+}
 .calendar-pill:hover {
   filter: brightness(1.2);
 }

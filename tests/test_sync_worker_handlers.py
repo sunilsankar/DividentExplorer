@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 import unittest
 from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
@@ -13,7 +13,7 @@ from app.db.repositories import (
     FinancialRepository,
     PriceRepository,
 )
-from app.sync.handlers import dispatch_job, update_analytics_for_company
+from app.sync.handlers import dispatch_job, project_future_dividends, update_analytics_for_company
 from app.sync.queue import SyncQueue
 from app.sync.rate_limiter import RateLimiter
 from app.sync.worker import SyncWorker
@@ -264,6 +264,58 @@ class TestSyncWorkerHandlers(unittest.TestCase):
         child_jobs = self.session.query(SyncJob).filter_by(parent_job_id=job.id).all()
         child_types = [j.job_type for j in child_jobs]
         self.assertEqual(child_types, ["SYNC_DIVIDENDS", "SYNC_PRICES", "SYNC_FINANCIALS"])
+
+    def test_project_future_dividends(self):
+        exch = ExchangeRepository(self.session).get_or_create(code="NYSE", name="NYSE")
+        comp, _ = CompanyRepository(self.session).upsert(
+            ticker="PG",
+            name="Procter & Gamble",
+            exchange_id=exch.id,
+        )
+        self.session.commit()
+
+        past_ex = date.today() - timedelta(days=90)
+        past_pay = date.today() - timedelta(days=60)
+        div_repo = DividendRepository(self.session)
+        div_repo.upsert_event(
+            company_id=comp.id,
+            ex_date=past_ex,
+            pay_date=past_pay,
+            amount=1.05,
+            currency="USD",
+            status="ACTUAL",
+        )
+        self.session.commit()
+
+        # Generate projections
+        created = project_future_dividends(self.session, comp.id)
+        self.assertEqual(created, 1)
+
+        projections = (
+            self.session.query(DividendEvent)
+            .filter_by(company_id=comp.id, status="PROJECTED")
+            .all()
+        )
+        self.assertEqual(len(projections), 1)
+        proj = projections[0]
+        self.assertEqual(proj.ex_date, past_ex + timedelta(days=364))
+        self.assertEqual(proj.pay_date, past_pay + timedelta(days=364))
+        self.assertEqual(proj.amount, 1.05)
+        self.assertEqual(proj.source, "projection")
+
+        # When an official future declaration exists within 14 days, skip projection
+        div_repo.upsert_event(
+            company_id=comp.id,
+            ex_date=proj.ex_date + timedelta(days=2),
+            pay_date=proj.pay_date + timedelta(days=2),
+            amount=1.05,
+            currency="USD",
+            status="EXPECTED",
+        )
+        self.session.commit()
+
+        created_again = project_future_dividends(self.session, comp.id)
+        self.assertEqual(created_again, 0)
 
 
 if __name__ == "__main__":

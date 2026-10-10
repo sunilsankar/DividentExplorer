@@ -45,6 +45,13 @@
     <option value="failed" {% if selected_sync_state == 'failed' %}selected{% endif %}>Has Failed Job</option>
   </select>
 
+  <select name="page_size">
+    <option value="30" {% if page_size == 30 %}selected{% endif %}>30 / page</option>
+    <option value="50" {% if page_size == 50 %}selected{% endif %}>50 / page</option>
+    <option value="100" {% if page_size == 100 %}selected{% endif %}>100 / page</option>
+    <option value="250" {% if page_size == 250 %}selected{% endif %}>250 / page</option>
+  </select>
+
   <span class="htmx-indicator" style="align-self: center; font-size: 0.85rem; color: var(--accent-color);">Loading...</span>
 </form>
 

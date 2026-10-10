@@ -1,13 +1,13 @@
 <div id="calendar-filters" class="calendar-controls">
   <div class="calendar-nav">
-    <a href="/calendar?year={{ prev_year }}&month={{ prev_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&view={{ current_view }}"
-       hx-get="/calendar?year={{ prev_year }}&month={{ prev_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&view={{ current_view }}"
+    <a href="/calendar?year={{ prev_year }}&month={{ prev_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+       hx-get="/calendar?year={{ prev_year }}&month={{ prev_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
        hx-target="#calendar-container"
        class="button-secondary"
        style="padding: 0.35rem 0.75rem;">&larr; Prev</a>
     <h2 style="margin: 0; font-size: 1.25rem;">{{ month_name }} {{ year }}</h2>
-    <a href="/calendar?year={{ next_year }}&month={{ next_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&view={{ current_view }}"
-       hx-get="/calendar?year={{ next_year }}&month={{ next_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&view={{ current_view }}"
+    <a href="/calendar?year={{ next_year }}&month={{ next_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+       hx-get="/calendar?year={{ next_year }}&month={{ next_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
        hx-target="#calendar-container"
        class="button-secondary"
        style="padding: 0.35rem 0.75rem;">Next &rarr;</a>
@@ -29,6 +29,18 @@
       <option value="ETF" {% if selected_asset_type == 'ETF' %}selected{% endif %}>ETFs Only</option>
     </select>
 
+    <!-- Exchange Filter -->
+    <select name="exchange"
+            hx-get="/calendar"
+            hx-target="#calendar-container"
+            hx-include="#calendar-filters"
+            style="padding: 0.35rem 0.65rem; font-size: 0.85rem;">
+      <option value="" {% if not selected_exchange %}selected{% endif %}>All Exchanges</option>
+      {% for exch in exchanges %}
+      <option value="{{ exch.code }}" {% if selected_exchange == exch.code %}selected{% endif %}>{{ exch.code }} - {{ exch.name }}</option>
+      {% endfor %}
+    </select>
+
     <!-- Currency Choice Filter -->
     <select name="currency"
             hx-get="/calendar"
@@ -43,13 +55,13 @@
 
     <!-- View Toggle -->
     <div style="display: flex; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;">
-      <a href="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&view=calendar"
-         hx-get="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&view=calendar"
+      <a href="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=calendar"
+         hx-get="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=calendar"
          hx-target="#calendar-container"
          class="{% if current_view == 'calendar' %}button-primary{% else %}button-secondary{% endif %}"
          style="padding: 0.35rem 0.65rem; border-radius: 0; font-size: 0.8rem; text-decoration: none;">Grid</a>
-      <a href="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&view=table"
-         hx-get="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&view=table"
+      <a href="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=table"
+         hx-get="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=table"
          hx-target="#calendar-container"
          class="{% if current_view == 'table' %}button-primary{% else %}button-secondary{% endif %}"
          style="padding: 0.35rem 0.65rem; border-radius: 0; font-size: 0.8rem; text-decoration: none;">Table</a>
@@ -84,9 +96,9 @@
         <div class="calendar-events">
           {% for ev in events_by_day[day] %}
           <a href="/stocks/{{ ev.ticker }}"
-             class="calendar-pill {% if ev.asset_type == 'ETF' %}pill-etf{% endif %}"
-             title="{{ ev.company_name }} &bull; {{ ev.currency|currency_symbol }}{{ '%.4f'|format(ev.amount) }}">
-            <span><strong>{{ ev.ticker }}</strong></span>
+             class="calendar-pill {% if ev.asset_type == 'ETF' %}pill-etf{% endif %} {% if ev.status == 'PROJECTED' %}pill-projected{% endif %}"
+             title="{{ ev.company_name }} &bull; {% if ev.status == 'PROJECTED' %}Projected {% endif %}{{ ev.currency|currency_symbol }}{{ '%.4f'|format(ev.amount) }}">
+            <span><strong>{{ ev.ticker }}</strong>{% if ev.status == 'PROJECTED' %}<em style="font-size: 0.65rem; opacity: 0.85;">*</em>{% endif %}</span>
             <span>{{ ev.currency|currency_symbol }}{{ "%.2f"|format(ev.amount) }}</span>
           </a>
           {% endfor %}
@@ -103,9 +115,9 @@
   <h3 class="section-title" style="font-size: 1.1rem;">Scheduled Events ({% if current_view == 'calendar' %}{{ month_name }} {{ year }}{% else %}All Matching{% endif %})</h3>
   <span style="font-size: 0.85rem; color: var(--text-muted);">
     {% if current_view == 'calendar' %}
-      Showing ex-dividend dates in this month
+      Showing ex-dividend dates in this month (* indicates projected payment)
     {% else %}
-      Showing {{ events|length }} scheduled events
+      Showing {{ events|length }} scheduled events (* indicates projected payment)
     {% endif %}
   </span>
 </div>
@@ -116,6 +128,7 @@
       <th>Ex-Dividend Date</th>
       <th>Ticker</th>
       <th>Type</th>
+      <th>Status</th>
       <th>Company Name</th>
       <th>Dividend Amount</th>
       <th>Payment Date</th>
@@ -132,6 +145,13 @@
           {{ ev.asset_type or 'STOCK' }}
         </span>
       </td>
+      <td>
+        {% if ev.status == 'PROJECTED' %}
+          <span class="badge badge-warning" style="font-size: 0.65rem;" title="Projected dividend based on 52-week historical schedule">Projected</span>
+        {% else %}
+          <span class="badge badge-neutral" style="font-size: 0.65rem;">Declared</span>
+        {% endif %}
+      </td>
       <td>{{ ev.company_name }}</td>
       <td><span class="badge badge-success">{{ ev.currency|currency_symbol }}{{ "%.4f"|format(ev.amount) }}</span></td>
       <td>{{ ev.payment_date.strftime('%Y-%m-%d') if ev.payment_date else '—' }}</td>
@@ -139,7 +159,7 @@
     </tr>
     {% else %}
     <tr>
-      <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+      <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">
         No dividend events recorded matching the selected month and filters.
       </td>
     </tr>

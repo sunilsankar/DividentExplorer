@@ -1,7 +1,7 @@
 import logging
 from datetime import date, timedelta
 from typing import Optional
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("dividend_sync_worker")
@@ -268,9 +268,73 @@ def handle_sync_dividends(
 
     # Recalculate analytics locally
     update_analytics_for_company(session, company.id)
+    project_future_dividends(session, company.id)
     comp_repo = CompanyRepository(session)
     comp_repo.mark_synced(company.id)
     return f"Synced {inserted_count} dividend events for {ticker}"
+
+
+def project_future_dividends(session: Session, company_id: int) -> int:
+    """Project next cycle dividends based on past 52-week payouts.
+
+    ponytail: adds 364 days (52 weeks) to past actual events to preserve weekday; upgrade to frequency-aware model if erratic schedules emerge
+    """
+    from app.db.models import DividendEvent
+
+    today = date.today()
+    session.execute(
+        delete(DividendEvent).where(
+            DividendEvent.company_id == company_id,
+            DividendEvent.status == "PROJECTED",
+            DividendEvent.ex_date >= today,
+        )
+    )
+    one_year_ago = today - timedelta(days=365)
+    recent = session.execute(
+        select(DividendEvent).where(
+            DividendEvent.company_id == company_id,
+            DividendEvent.status == "ACTUAL",
+            DividendEvent.ex_date >= one_year_ago,
+            DividendEvent.ex_date <= today,
+        ).order_by(DividendEvent.ex_date.asc())
+    ).scalars().all()
+
+    if not recent:
+        return 0
+
+    future_official = {
+        e.ex_date
+        for e in session.execute(
+            select(DividendEvent).where(
+                DividendEvent.company_id == company_id,
+                DividendEvent.status != "PROJECTED",
+                DividendEvent.ex_date >= today,
+            )
+        ).scalars().all()
+        if e.ex_date
+    }
+
+    div_repo = DividendRepository(session)
+    count = 0
+    for ev in recent:
+        if not ev.ex_date:
+            continue
+        proj_ex = ev.ex_date + timedelta(days=364)
+        if proj_ex < today or any(abs((proj_ex - fo).days) <= 14 for fo in future_official):
+            continue
+        proj_pay = (ev.pay_date + timedelta(days=364)) if ev.pay_date else None
+        div_repo.upsert_event(
+            company_id=company_id,
+            ex_date=proj_ex,
+            pay_date=proj_pay,
+            amount=ev.amount,
+            currency=ev.currency,
+            frequency=ev.frequency,
+            status="PROJECTED",
+            source="projection",
+        )
+        count += 1
+    return count
 
 
 def handle_sync_prices(

@@ -302,6 +302,7 @@ class StockService:
         days: Optional[int] = None,
         asset_type: Optional[str] = None,
         currency: Optional[str] = None,
+        exchange: Optional[str] = None,
         limit: int = 200,
     ) -> Sequence[tuple[DividendEvent, Company]]:
         base_stmt = (
@@ -321,6 +322,10 @@ class StockService:
                     )
                 )
             )
+        if exchange:
+            if not currency:
+                base_stmt = base_stmt.join(Exchange, Company.exchange_id == Exchange.id)
+            base_stmt = base_stmt.where(Exchange.code == exchange.upper())
         stmt = base_stmt
         if start_date:
             stmt = stmt.where(DividendEvent.ex_date >= start_date)

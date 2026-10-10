@@ -136,6 +136,7 @@ def stocks_view(
     sort: Optional[str] = "ticker",
     sync_state: Optional[str] = None,
     page: int = 1,
+    page_size: int = 30,
     db: Session = Depends(get_db),
 ):
     stock_service = StockService(db)
@@ -147,7 +148,7 @@ def stocks_view(
         sort_by=sort,
         sync_state=sync_state,
         page=page,
-        page_size=30,
+        page_size=page_size,
     )
     sectors = stock_service.get_available_sectors()
     exchanges = stock_service.list_exchanges()
@@ -160,6 +161,7 @@ def stocks_view(
             "stocks": res["items"],
             "total_count": res["total"],
             "page": res["page"],
+            "page_size": page_size,
             "total_pages": res["pages"],
             "query": q,
             "selected_sector": sector,
@@ -183,6 +185,7 @@ def stocks_table_partial(
     sort: Optional[str] = "ticker",
     sync_state: Optional[str] = None,
     page: int = 1,
+    page_size: int = 30,
     db: Session = Depends(get_db),
 ):
     stock_service = StockService(db)
@@ -194,7 +197,7 @@ def stocks_table_partial(
         sort_by=sort,
         sync_state=sync_state,
         page=page,
-        page_size=30,
+        page_size=page_size,
     )
     return templates.TemplateResponse(
         request=request,
@@ -203,6 +206,7 @@ def stocks_table_partial(
             "stocks": res["items"],
             "total_count": res["total"],
             "page": res["page"],
+            "page_size": page_size,
             "total_pages": res["pages"],
             "selected_asset_type": asset_type,
             "selected_exchange": exchange,
@@ -277,17 +281,21 @@ def calendar_view(
     month: Optional[int] = None,
     asset_type: Optional[str] = None,
     currency: Optional[str] = None,
+    exchange: Optional[str] = None,
     view: Optional[str] = "calendar",
     db: Session = Depends(get_db),
 ):
     stock_service = StockService(db)
     available_currencies = stock_service.list_currencies()
+    exchanges = stock_service.list_exchanges()
     normalized_asset_type = asset_type.strip().upper() if asset_type else None
     normalized_currency = currency.strip().upper() if currency else None
+    normalized_exchange = exchange.strip().upper() if exchange else None
 
     raw_events = stock_service.get_dividend_calendar(
         asset_type=normalized_asset_type,
         currency=normalized_currency,
+        exchange=normalized_exchange,
         limit=200,
     )
     events = [
@@ -300,6 +308,7 @@ def calendar_view(
             "payment_date": ev.pay_date,
             "record_date": ev.record_date,
             "asset_type": comp.asset_type,
+            "status": ev.status,
         }
         for ev, comp in raw_events
     ]
@@ -340,7 +349,9 @@ def calendar_view(
         "next_month": next_month,
         "selected_asset_type": normalized_asset_type or "",
         "selected_currency": normalized_currency or "",
+        "selected_exchange": normalized_exchange or "",
         "available_currencies": available_currencies,
+        "exchanges": exchanges,
         "current_view": view or "calendar",
         "today_day": today.day if today.year == cur_year and today.month == cur_month else None,
     }

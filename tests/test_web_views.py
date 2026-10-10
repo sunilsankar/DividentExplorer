@@ -208,6 +208,7 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("SCHD", resp.text)
         self.assertIn("ETF", resp.text)
         self.assertIn('name="exchange"', resp.text)
+        self.assertIn('name="page_size"', resp.text)
         self.assertIn('class="header-search"', resp.text)
         self.assertIn('class="active">Stocks</a>', resp.text)
 
@@ -297,6 +298,27 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertEqual(resp_view.status_code, 200)
         self.assertIn('value="stale_7" selected', resp_view.text)
 
+    def test_stocks_pagination_controls(self):
+        # With page_size=1, 4 seeded companies result in 4 pages
+        resp_p1 = self.client.get("/stocks/table?page=1&page_size=1")
+        self.assertEqual(resp_p1.status_code, 200)
+        self.assertIn("Next &rsaquo;", resp_p1.text)
+        self.assertIn("Last &raquo;", resp_p1.text)
+        self.assertNotIn("&lsaquo; Prev", resp_p1.text)
+
+        resp_p2 = self.client.get("/stocks/table?page=2&page_size=1")
+        self.assertEqual(resp_p2.status_code, 200)
+        self.assertIn("&laquo; First", resp_p2.text)
+        self.assertIn("&lsaquo; Prev", resp_p2.text)
+        self.assertIn("Next &rsaquo;", resp_p2.text)
+        self.assertIn("Last &raquo;", resp_p2.text)
+
+        resp_p4 = self.client.get("/stocks/table?page=4&page_size=1")
+        self.assertEqual(resp_p4.status_code, 200)
+        self.assertIn("&laquo; First", resp_p4.text)
+        self.assertIn("&lsaquo; Prev", resp_p4.text)
+        self.assertNotIn("Next &rsaquo;", resp_p4.text)
+
     def test_stock_detail_view(self):
         resp = self.client.get("/stocks/JNJ")
         self.assertEqual(resp.status_code, 200)
@@ -350,6 +372,16 @@ class WebViewsTestCase(unittest.TestCase):
         resp_curr = self.client.get("/calendar?currency=USD")
         self.assertEqual(resp_curr.status_code, 200)
         self.assertIn("JNJ", resp_curr.text)
+
+        # Exchange filter
+        self.assertIn('name="exchange"', resp.text)
+        resp_exch = self.client.get("/calendar?exchange=NYSE")
+        self.assertEqual(resp_exch.status_code, 200)
+        self.assertIn("JNJ", resp_exch.text)
+
+        resp_exch_empty = self.client.get("/calendar?exchange=AMS")
+        self.assertEqual(resp_exch_empty.status_code, 200)
+        self.assertNotIn("JNJ", resp_exch_empty.text)
 
         # HTMX partial response
         resp_htmx = self.client.get(
