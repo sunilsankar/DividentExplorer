@@ -126,6 +126,7 @@ class CompanyRepository:
         search: Optional[str] = None,
         is_active: Optional[bool] = True,
         sync_state: Optional[str] = None,
+        max_price: Optional[float] = None,
     ) -> Any:
         if exchange_id is not None:
             stmt = stmt.where(Company.exchange_id == exchange_id)
@@ -140,6 +141,15 @@ class CompanyRepository:
         if search:
             pattern = f"%{search.strip()}%"
             stmt = stmt.where(Company.ticker.ilike(pattern) | Company.name.ilike(pattern))
+        if max_price is not None and max_price > 0:
+            latest_close = (
+                select(PriceHistory.close)
+                .where(PriceHistory.company_id == Company.id)
+                .order_by(desc(PriceHistory.date))
+                .limit(1)
+                .scalar_subquery()
+            )
+            stmt = stmt.where(latest_close.is_not(None), latest_close <= max_price)
         if sync_state == "never":
             stmt = stmt.where(Company.last_synced_at.is_(None))
         elif sync_state == "stale_7":
@@ -162,6 +172,8 @@ class CompanyRepository:
         search: Optional[str] = None,
         is_active: Optional[bool] = True,
         sync_state: Optional[str] = None,
+        max_price: Optional[float] = None,
+        sort_by: Optional[str] = "ticker",
         limit: int = 50,
         offset: int = 0,
     ) -> Sequence[Company]:
@@ -174,8 +186,36 @@ class CompanyRepository:
             search=search,
             is_active=is_active,
             sync_state=sync_state,
+            max_price=max_price,
         )
-        if search and search.strip():
+        if sort_by == "yield":
+            stmt = stmt.outerjoin(DividendMetric, DividendMetric.company_id == Company.id)
+            stmt = stmt.order_by(DividendMetric.current_yield.desc().nullslast(), Company.ticker)
+        elif sort_by == "quality":
+            stmt = stmt.outerjoin(DividendMetric, DividendMetric.company_id == Company.id)
+            stmt = stmt.order_by(DividendMetric.quality_score.desc().nullslast(), Company.ticker)
+        elif sort_by == "growth":
+            stmt = stmt.outerjoin(DividendMetric, DividendMetric.company_id == Company.id)
+            stmt = stmt.order_by(DividendMetric.growth_3y.desc().nullslast(), Company.ticker)
+        elif sort_by == "price_asc":
+            latest_close = (
+                select(PriceHistory.close)
+                .where(PriceHistory.company_id == Company.id)
+                .order_by(desc(PriceHistory.date))
+                .limit(1)
+                .scalar_subquery()
+            )
+            stmt = stmt.order_by(latest_close.asc().nullslast(), Company.ticker)
+        elif sort_by == "price_desc":
+            latest_close = (
+                select(PriceHistory.close)
+                .where(PriceHistory.company_id == Company.id)
+                .order_by(desc(PriceHistory.date))
+                .limit(1)
+                .scalar_subquery()
+            )
+            stmt = stmt.order_by(latest_close.desc().nullslast(), Company.ticker)
+        elif search and search.strip():
             s = search.strip().upper()
             # ponytail: relevance ranking so "AD" ranks exact "AD", prefix "AD.AS", "ADP", substring "BROADCOM"
             stmt = stmt.order_by(
@@ -202,6 +242,7 @@ class CompanyRepository:
         search: Optional[str] = None,
         is_active: Optional[bool] = True,
         sync_state: Optional[str] = None,
+        max_price: Optional[float] = None,
     ) -> int:
         stmt = self._filter_companies(
             select(func.count(Company.id)),
@@ -212,6 +253,7 @@ class CompanyRepository:
             search=search,
             is_active=is_active,
             sync_state=sync_state,
+            max_price=max_price,
         )
         return self.session.execute(stmt).scalar() or 0
 

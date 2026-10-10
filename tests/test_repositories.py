@@ -408,6 +408,37 @@ class RepositoryTestCase(unittest.TestCase):
         self.assertEqual(results[1].ticker, "ADP")
         self.assertEqual(results[2].ticker, "AVGO")
 
+    def test_max_price_filter_and_price_sorting(self) -> None:
+        comp_repo = CompanyRepository(self.session)
+        price_repo = PriceRepository(self.session)
+        exch = ExchangeRepository(self.session).upsert(code="TEST", name="Test Exchange")
+        self.session.commit()
+
+        c_cheap = Company(ticker="CHEAP", name="Cheap Stock", exchange_id=exch.id, is_active=True)
+        c_mid = Company(ticker="MID", name="Mid Stock", exchange_id=exch.id, is_active=True)
+        c_exp = Company(ticker="EXP", name="Expensive Stock", exchange_id=exch.id, is_active=True)
+        self.session.add_all([c_cheap, c_mid, c_exp])
+        self.session.commit()
+
+        price_repo.upsert_price(company_id=c_cheap.id, price_date=date(2026, 10, 1), close_price=8.50)
+        price_repo.upsert_price(company_id=c_mid.id, price_date=date(2026, 10, 1), close_price=24.00)
+        price_repo.upsert_price(company_id=c_exp.id, price_date=date(2026, 10, 1), close_price=150.00)
+        self.session.commit()
+
+        # max_price = 10 -> only cheap
+        under_10 = comp_repo.list_companies(max_price=10.0)
+        self.assertEqual([c.ticker for c in under_10], ["CHEAP"])
+        self.assertEqual(comp_repo.count_companies(max_price=10.0), 1)
+
+        # max_price = 25 -> cheap and mid
+        under_25 = comp_repo.list_companies(max_price=25.0, sort_by="price_asc")
+        self.assertEqual([c.ticker for c in under_25], ["CHEAP", "MID"])
+        self.assertEqual(comp_repo.count_companies(max_price=25.0), 2)
+
+        # sort_by = price_desc
+        desc_res = comp_repo.list_companies(sort_by="price_desc")
+        self.assertEqual([c.ticker for c in desc_res[:3]], ["EXP", "MID", "CHEAP"])
+
 
 if __name__ == "__main__":
     unittest.main()

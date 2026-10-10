@@ -135,6 +135,7 @@ def stocks_view(
     exchange: Optional[str] = None,
     sort: Optional[str] = "ticker",
     sync_state: Optional[str] = None,
+    max_price: Optional[float] = None,
     page: int = 1,
     page_size: int = 30,
     db: Session = Depends(get_db),
@@ -147,6 +148,7 @@ def stocks_view(
         exchange=exchange,
         sort_by=sort,
         sync_state=sync_state,
+        max_price=max_price,
         page=page,
         page_size=page_size,
     )
@@ -168,6 +170,7 @@ def stocks_view(
             "selected_asset_type": asset_type,
             "selected_exchange": exchange,
             "selected_sync_state": sync_state,
+            "selected_max_price": max_price,
             "sectors": sectors,
             "exchanges": exchanges,
             "sort": sort,
@@ -184,6 +187,7 @@ def stocks_table_partial(
     exchange: Optional[str] = None,
     sort: Optional[str] = "ticker",
     sync_state: Optional[str] = None,
+    max_price: Optional[float] = None,
     page: int = 1,
     page_size: int = 30,
     db: Session = Depends(get_db),
@@ -196,6 +200,7 @@ def stocks_table_partial(
         exchange=exchange,
         sort_by=sort,
         sync_state=sync_state,
+        max_price=max_price,
         page=page,
         page_size=page_size,
     )
@@ -211,6 +216,8 @@ def stocks_table_partial(
             "selected_asset_type": asset_type,
             "selected_exchange": exchange,
             "selected_sync_state": sync_state,
+            "selected_max_price": max_price,
+            "sort": sort,
         },
     )
 

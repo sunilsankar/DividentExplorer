@@ -82,6 +82,13 @@ class Company(Base):
     def market_cap(self) -> Optional[float]:
         return self.financial_metric.market_cap if self.financial_metric else None
 
+    @property
+    def latest_price(self) -> Optional[float]:
+        # ponytail: latest close price from relationship; upgrade: denormalized column on company if large scale
+        if self.price_history:
+            return max(self.price_history, key=lambda p: p.date).close
+        return None
+
 
 
 class DividendEvent(Base):

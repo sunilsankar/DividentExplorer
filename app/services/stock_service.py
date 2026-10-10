@@ -37,6 +37,8 @@ class StockService:
         asset_type: Optional[str] = None,
         is_active: Optional[bool] = True,
         sync_state: Optional[str] = None,
+        max_price: Optional[float] = None,
+        sort_by: Optional[str] = "ticker",
         limit: int = 50,
         offset: int = 0,
     ) -> Sequence[Company]:
@@ -55,6 +57,8 @@ class StockService:
             asset_type=asset_type,
             is_active=is_active,
             sync_state=sync_state,
+            max_price=max_price,
+            sort_by=sort_by,
             limit=limit,
             offset=offset,
         )
@@ -68,6 +72,7 @@ class StockService:
         asset_type: Optional[str] = None,
         is_active: Optional[bool] = True,
         sync_state: Optional[str] = None,
+        max_price: Optional[float] = None,
     ) -> int:
         exchange_id = None
         if exchange_code:
@@ -84,6 +89,7 @@ class StockService:
             asset_type=asset_type,
             is_active=is_active,
             sync_state=sync_state,
+            max_price=max_price,
         )
 
     def get_company_by_ticker(self, ticker: str) -> Optional[Company]:
@@ -137,6 +143,7 @@ class StockService:
         exchange: Optional[str] = None,
         sort_by: Optional[str] = "ticker",
         sync_state: Optional[str] = None,
+        max_price: Optional[float] = None,
         page: int = 1,
         page_size: int = 30,
     ) -> dict[str, Any]:
@@ -149,6 +156,7 @@ class StockService:
             asset_type=asset_type,
             is_active=True,
             sync_state=sync_state,
+            max_price=max_price,
         )
         items = self.list_companies(
             exchange_code=exchange,
@@ -158,6 +166,8 @@ class StockService:
             asset_type=asset_type,
             is_active=True,
             sync_state=sync_state,
+            max_price=max_price,
+            sort_by=sort_by,
             limit=page_size,
             offset=offset,
         )

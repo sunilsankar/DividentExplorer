@@ -49,12 +49,12 @@
     <div class="card-title">Current Dividend Yield</div>
     <div class="card-value">
       {% if metric and metric.current_yield is not none %}
-        {{ "%.2f"|format(metric.current_yield) }}%
+        {{ "%.2f"|format(metric.current_yield * 100) }}%
       {% else %}
         —
       {% endif %}
     </div>
-    <div class="card-subtext">Trailing: {{ "%.2f"|format(metric.trailing_annual_dividend_yield) if metric and metric.trailing_annual_dividend_yield is not none else '—' }}%</div>
+    <div class="card-subtext">Trailing: {{ "%.2f"|format(metric.trailing_annual_dividend_yield * 100) if metric and metric.trailing_annual_dividend_yield is not none else '—' }}%</div>
   </div>
 
   <div class="card">
@@ -85,7 +85,7 @@
     <div class="card-title">Dividend Growth (3Y CAGR)</div>
     <div class="card-value">
       {% if metric and metric.dividend_growth_3y is not none %}
-        {{ "%.1f"|format(metric.dividend_growth_3y) }}%
+        {{ "%.1f"|format(metric.dividend_growth_3y * 100) }}%
       {% else %}
         —
       {% endif %}
@@ -270,7 +270,7 @@
     <tr>
       <td><strong><a href="/stocks/{{ peer.ticker }}">{{ peer.ticker }}</a></strong></td>
       <td>{{ peer.name }}</td>
-      <td>{{ ("%.2f%%"|format(peer.metric.current_yield)) if peer.metric and peer.metric.current_yield is not none else '—' }}</td>
+      <td>{{ ("%.2f%%"|format(peer.metric.current_yield * 100)) if peer.metric and peer.metric.current_yield is not none else '—' }}</td>
       <td>
         <span class="badge {% if peer.metric and peer.metric.dividend_quality_score and peer.metric.dividend_quality_score >= 70 %}badge-success{% elif peer.metric and peer.metric.dividend_quality_score and peer.metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
           {{ peer.metric.dividend_quality_score if peer.metric and peer.metric.dividend_quality_score is not none else 'N/A' }}

@@ -15,7 +15,7 @@
       <td><strong><a href="/stocks/{{ item.ticker }}">{{ item.ticker }}</a></strong></td>
       <td>{{ item.company_name }}</td>
       <td>{{ item.sector or '—' }}</td>
-      <td><span class="badge badge-success">{{ "%.2f"|format(item.current_yield) }}%</span></td>
+      <td><span class="badge badge-success">{{ "%.2f"|format(item.current_yield * 100) }}%</span></td>
       <td>{% if item.annual_dividend is not none %}{{ item.currency|currency_symbol }}{{ "%.2f"|format(item.annual_dividend) }}{% else %}—{% endif %}</td>
       <td>
         <span class="badge {% if item.dividend_quality_score and item.dividend_quality_score >= 70 %}badge-success{% elif item.dividend_quality_score and item.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">

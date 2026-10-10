@@ -60,6 +60,21 @@ class TestAnalyticsCalculations(unittest.TestCase):
         self.assertGreater(res.quality_score, 0)
         self.assertLessEqual(res.quality_score, 100)
 
+    def test_missing_data_cannot_earn_full_marks(self):
+        # 25 years paying, high yield, high growth, but NO financial data
+        events = [
+            DividendEvent(ex_date=date(2026 - i, 6, 1), amount=2.0 + i * 0.1, status="ACTUAL")
+            for i in range(26)
+        ]
+        res = calculate_dividend_metrics(
+            events=events,
+            latest_price=50.0,
+            financial=None, # Missing financial data
+            as_of=date(2026, 6, 1),
+        )
+        self.assertIsNotNone(res.quality_score)
+        self.assertLessEqual(res.quality_score, 85.0)
+
 
 if __name__ == "__main__":
     unittest.main()

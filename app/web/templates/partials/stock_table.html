@@ -6,6 +6,7 @@
       <th>Exchange</th>
       <th>Sector</th>
       <th>Industry</th>
+      <th>Price</th>
       <th>Current Yield</th>
       <th>Annual Dividend</th>
       <th>Payout Ratio</th>
@@ -26,8 +27,15 @@
       <td>{{ s.sector or '—' }}</td>
       <td>{{ s.industry or '—' }}</td>
       <td>
+        {% if s.latest_price is not none %}
+          {{ s.currency|currency_symbol }}{{ "%.2f"|format(s.latest_price) }}
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      <td>
         {% if s.metric and s.metric.current_yield is not none %}
-          <span class="badge badge-success">{{ "%.2f"|format(s.metric.current_yield) }}%</span>
+          <span class="badge badge-success">{{ "%.2f"|format(s.metric.current_yield * 100) }}%</span>
         {% else %}
           —
         {% endif %}
@@ -58,7 +66,7 @@
     </tr>
     {% else %}
     <tr>
-      <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+      <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 2rem;">
         No matching stocks found.
       </td>
     </tr>

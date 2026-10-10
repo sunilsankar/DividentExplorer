@@ -182,7 +182,9 @@ def calculate_dividend_metrics(
             score += 10
 
     # Pillar 4: Financial Health / Payout Safety (max 25)
+    has_financial_data = False
     if payout_ratio is not None:
+        has_financial_data = True
         if 0.20 <= payout_ratio <= 0.60:
             score += 25
         elif 0.10 <= payout_ratio <= 0.75:
@@ -190,15 +192,25 @@ def calculate_dividend_metrics(
         elif payout_ratio <= 0.90:
             score += 12
     elif financial and financial.debt_to_equity is not None:
+        has_financial_data = True
         if financial.debt_to_equity < 1.0:
             score += 20
         elif financial.debt_to_equity < 2.0:
             score += 12
         else:
             score += 5
-    else:
-        # Neutral baseline when financial data is missing
-        score += 10
+    # Missing financial data earns 0 points (no free baseline)
+
+    # ponytail: missing data penalty; ensure stocks with missing pillars or unverified coverage cannot earn 100/100
+    has_all_data = (
+        years_paying >= 2
+        and effective_growth is not None
+        and current_yield is not None
+        and has_financial_data
+        and (fcf_coverage is not None and fcf_coverage >= 1.0)
+    )
+    if not has_all_data:
+        score = min(score, 85.0)
 
     quality_score = round(min(100.0, max(0.0, score)), 1)
 

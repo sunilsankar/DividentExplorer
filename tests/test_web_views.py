@@ -81,9 +81,9 @@ class WebViewsTestCase(unittest.TestCase):
 
         metric = DividendMetric(
             company_id=jnj.id,
-            current_yield=3.1,
+            current_yield=0.031,
             annual_dividend=4.96,
-            growth_3y=5.5,
+            growth_3y=0.055,
             payout_ratio=0.55,
             years_paying=20,
             years_growing=15,
@@ -91,9 +91,9 @@ class WebViewsTestCase(unittest.TestCase):
         )
         pfe_metric = DividendMetric(
             company_id=pfe.id,
-            current_yield=5.8,
+            current_yield=0.058,
             annual_dividend=1.68,
-            growth_3y=3.2,
+            growth_3y=0.032,
             payout_ratio=0.72,
             years_paying=25,
             years_growing=12,
@@ -566,6 +566,38 @@ class WebViewsTestCase(unittest.TestCase):
         resp_empty = self.client.post("/sync/cleanup-unclassified")
         self.assertEqual(resp_empty.status_code, 200)
         self.assertIn("No unclassified stocks older than the grace period were found.", resp_empty.text)
+
+    def test_stocks_max_price_and_sort_view(self):
+        # Seed a cheap stock with price 8.50
+        exch = self.session.query(Exchange).first()
+        cheap_stock = Company(
+            ticker="PENNY",
+            exchange_id=exch.id,
+            name="Penny Inc",
+            sector="Technology",
+            is_active=True,
+        )
+        self.session.add(cheap_stock)
+        self.session.flush()
+
+        p = PriceHistory(
+            company_id=cheap_stock.id,
+            date=date(2026, 10, 1),
+            close=8.50,
+        )
+        self.session.add(p)
+        self.session.commit()
+
+        # Filter by max_price=10
+        resp = self.client.get("/stocks/table?max_price=10")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("PENNY", resp.text)
+        self.assertNotIn("JNJ", resp.text)
+
+        # Sort by price_asc
+        resp_sort = self.client.get("/stocks/table?sort=price_asc")
+        self.assertEqual(resp_sort.status_code, 200)
+        self.assertIn("PENNY", resp_sort.text)
 
 
 if __name__ == "__main__":

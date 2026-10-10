@@ -35,6 +35,19 @@
     <option value="yield" {% if sort == 'yield' %}selected{% endif %}>Sort by Current Yield (High &rarr; Low)</option>
     <option value="quality" {% if sort == 'quality' %}selected{% endif %}>Sort by Quality Score (High &rarr; Low)</option>
     <option value="growth" {% if sort == 'growth' %}selected{% endif %}>Sort by Dividend Growth</option>
+    <option value="price_asc" {% if sort == 'price_asc' %}selected{% endif %}>Sort by Price (Low &rarr; High)</option>
+    <option value="price_desc" {% if sort == 'price_desc' %}selected{% endif %}>Sort by Price (High &rarr; Low)</option>
+  </select>
+
+  <select name="max_price">
+    <option value="">All Prices</option>
+    <option value="5" {% if selected_max_price == 5 %}selected{% endif %}>Under &euro;/$ 5</option>
+    <option value="10" {% if selected_max_price == 10 %}selected{% endif %}>Under &euro;/$ 10</option>
+    <option value="20" {% if selected_max_price == 20 %}selected{% endif %}>Under &euro;/$ 20</option>
+    <option value="25" {% if selected_max_price == 25 %}selected{% endif %}>Under &euro;/$ 25</option>
+    <option value="50" {% if selected_max_price == 50 %}selected{% endif %}>Under &euro;/$ 50</option>
+    <option value="100" {% if selected_max_price == 100 %}selected{% endif %}>Under &euro;/$ 100</option>
+    <option value="200" {% if selected_max_price == 200 %}selected{% endif %}>Under &euro;/$ 200</option>
   </select>
 
   <select name="sync_state">

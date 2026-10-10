@@ -38,13 +38,13 @@
       <td><strong>Current Yield</strong></td>
       <td style="background-color: rgba(56, 189, 248, 0.05);">
         {% if comparison.target.current_yield is not none %}
-          <span class="badge badge-success">{{ "%.2f"|format(comparison.target.current_yield) }}%</span>
+          <span class="badge badge-success">{{ "%.2f"|format(comparison.target.current_yield * 100) }}%</span>
         {% else %}
           —
         {% endif %}
       </td>
       {% for peer in comparison.peers %}
-      <td>{{ ("%.2f%%"|format(peer.current_yield)) if peer.current_yield is not none else '—' }}</td>
+      <td>{{ ("%.2f%%"|format(peer.current_yield * 100)) if peer.current_yield is not none else '—' }}</td>
       {% endfor %}
     </tr>
     <tr>
