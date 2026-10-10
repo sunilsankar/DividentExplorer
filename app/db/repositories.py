@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional, Sequence
-from sqlalchemy import delete, desc, exists, func, select
+from sqlalchemy import case, delete, desc, exists, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -108,9 +108,12 @@ class CompanyRepository:
         return self.session.get(Company, company_id)
 
     def get_by_ticker(self, ticker: str, exchange_id: Optional[int] = None) -> Optional[Company]:
-        stmt = select(Company).where(Company.ticker == ticker.upper())
+        sym = ticker.strip().upper()
+        # ponytail: allow base ticker "AD" to find "AD.AS" if exact "AD" does not exist
+        stmt = select(Company).where((Company.ticker == sym) | Company.ticker.like(f"{sym}.%"))
         if exchange_id is not None:
             stmt = stmt.where(Company.exchange_id == exchange_id)
+        stmt = stmt.order_by(case((Company.ticker == sym, 0), else_=1), Company.ticker)
         return self.session.execute(stmt).scalars().first()
 
     def _filter_companies(
@@ -172,7 +175,22 @@ class CompanyRepository:
             is_active=is_active,
             sync_state=sync_state,
         )
-        stmt = stmt.order_by(Company.ticker).limit(limit).offset(offset)
+        if search and search.strip():
+            s = search.strip().upper()
+            # ponytail: relevance ranking so "AD" ranks exact "AD", prefix "AD.AS", "ADP", substring "BROADCOM"
+            stmt = stmt.order_by(
+                case(
+                    (Company.ticker.ilike(s), 0),
+                    (Company.ticker.ilike(f"{s}.%"), 1),
+                    (Company.ticker.ilike(f"{s}%"), 2),
+                    (Company.ticker.ilike(f"%{s}%"), 3),
+                    else_=4,
+                ),
+                Company.ticker,
+            )
+        else:
+            stmt = stmt.order_by(Company.ticker)
+        stmt = stmt.limit(limit).offset(offset)
         return self.session.execute(stmt).scalars().all()
 
     def count_companies(

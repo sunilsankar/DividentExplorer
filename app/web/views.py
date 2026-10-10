@@ -132,6 +132,7 @@ def stocks_view(
     q: Optional[str] = None,
     sector: Optional[str] = None,
     asset_type: Optional[str] = None,
+    exchange: Optional[str] = None,
     sort: Optional[str] = "ticker",
     sync_state: Optional[str] = None,
     page: int = 1,
@@ -139,9 +140,17 @@ def stocks_view(
 ):
     stock_service = StockService(db)
     res = stock_service.search_companies(
-        query=q, sector=sector, asset_type=asset_type, sort_by=sort, sync_state=sync_state, page=page, page_size=30
+        query=q,
+        sector=sector,
+        asset_type=asset_type,
+        exchange=exchange,
+        sort_by=sort,
+        sync_state=sync_state,
+        page=page,
+        page_size=30,
     )
     sectors = stock_service.get_available_sectors()
+    exchanges = stock_service.list_exchanges()
 
     return templates.TemplateResponse(
         request=request,
@@ -155,8 +164,10 @@ def stocks_view(
             "query": q,
             "selected_sector": sector,
             "selected_asset_type": asset_type,
+            "selected_exchange": exchange,
             "selected_sync_state": sync_state,
             "sectors": sectors,
+            "exchanges": exchanges,
             "sort": sort,
         },
     )
@@ -168,6 +179,7 @@ def stocks_table_partial(
     q: Optional[str] = None,
     sector: Optional[str] = None,
     asset_type: Optional[str] = None,
+    exchange: Optional[str] = None,
     sort: Optional[str] = "ticker",
     sync_state: Optional[str] = None,
     page: int = 1,
@@ -175,7 +187,14 @@ def stocks_table_partial(
 ):
     stock_service = StockService(db)
     res = stock_service.search_companies(
-        query=q, sector=sector, asset_type=asset_type, sort_by=sort, sync_state=sync_state, page=page, page_size=30
+        query=q,
+        sector=sector,
+        asset_type=asset_type,
+        exchange=exchange,
+        sort_by=sort,
+        sync_state=sync_state,
+        page=page,
+        page_size=30,
     )
     return templates.TemplateResponse(
         request=request,
@@ -186,6 +205,7 @@ def stocks_table_partial(
             "page": res["page"],
             "total_pages": res["pages"],
             "selected_asset_type": asset_type,
+            "selected_exchange": exchange,
             "selected_sync_state": sync_state,
         },
     )

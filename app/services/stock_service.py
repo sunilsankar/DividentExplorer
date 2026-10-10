@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Any, Optional, Sequence
-from sqlalchemy import desc, distinct, or_, select
+from sqlalchemy import case, desc, distinct, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Company, CompanyRelationship, DividendEvent, DividendMetric, Exchange, FinancialMetric
@@ -90,14 +90,17 @@ class StockService:
         return self.company_repo.get_by_ticker(ticker)
 
     def get_company_detail(self, ticker: str) -> Optional[dict[str, Any]]:
+        sym = ticker.strip().upper()
+        # ponytail: allow base ticker "AD" to find "AD.AS" if exact "AD" does not exist
         stmt = (
             select(Company)
-            .where(Company.ticker == ticker.upper())
+            .where((Company.ticker == sym) | Company.ticker.like(f"{sym}.%"))
             .options(
                 joinedload(Company.exchange),
                 joinedload(Company.dividend_metric),
                 joinedload(Company.financial_metric),
             )
+            .order_by(case((Company.ticker == sym, 0), else_=1), Company.ticker)
         )
         company = self.session.execute(stmt).scalars().first()
         if not company:
@@ -131,6 +134,7 @@ class StockService:
         sector: Optional[str] = None,
         industry: Optional[str] = None,
         asset_type: Optional[str] = None,
+        exchange: Optional[str] = None,
         sort_by: Optional[str] = "ticker",
         sync_state: Optional[str] = None,
         page: int = 1,
@@ -138,6 +142,7 @@ class StockService:
     ) -> dict[str, Any]:
         offset = max(0, (page - 1) * page_size)
         total = self.count_companies(
+            exchange_code=exchange,
             sector=sector,
             industry=industry,
             search=query,
@@ -146,6 +151,7 @@ class StockService:
             sync_state=sync_state,
         )
         items = self.list_companies(
+            exchange_code=exchange,
             sector=sector,
             industry=industry,
             search=query,

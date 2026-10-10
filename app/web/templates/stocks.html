@@ -16,6 +16,13 @@
     <option value="ETF" {% if selected_asset_type == 'ETF' %}selected{% endif %}>ETFs Only</option>
   </select>
 
+  <select name="exchange">
+    <option value="">All Exchanges</option>
+    {% for exch in exchanges %}
+    <option value="{{ exch.code }}" {% if selected_exchange == exch.code %}selected{% endif %}>{{ exch.code }} - {{ exch.name }}</option>
+    {% endfor %}
+  </select>
+
   <select name="sector">
     <option value="">All Sectors</option>
     {% for sec in sectors %}

@@ -207,6 +207,7 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("MSFT", resp.text)
         self.assertIn("SCHD", resp.text)
         self.assertIn("ETF", resp.text)
+        self.assertIn('name="exchange"', resp.text)
         self.assertIn('class="header-search"', resp.text)
         self.assertIn('class="active">Stocks</a>', resp.text)
 
@@ -214,6 +215,7 @@ class WebViewsTestCase(unittest.TestCase):
         resp_etfs = self.client.get("/stocks?asset_type=ETF")
         self.assertEqual(resp_etfs.status_code, 200)
         self.assertIn('class="active">ETFs</a>', resp_etfs.text)
+        self.assertIn('name="exchange"', resp_etfs.text)
 
     def test_stocks_table_partial(self):
         resp = self.client.get("/stocks/table?q=JNJ")
@@ -226,6 +228,21 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertEqual(resp_etf.status_code, 200)
         self.assertIn("SCHD", resp_etf.text)
         self.assertNotIn("JNJ", resp_etf.text)
+
+        # Filter by exchange
+        resp_exch = self.client.get("/stocks/table?exchange=NYSE")
+        self.assertEqual(resp_exch.status_code, 200)
+        self.assertIn("JNJ", resp_exch.text)
+
+    def test_stock_detail_base_ticker_resolution(self):
+        exch_ams = self.session.query(Exchange).filter_by(code="AMS").first()
+        c_ahold = Company(ticker="AD.AS", name="Koninklijke Ahold Delhaize N.V.", exchange_id=exch_ams.id, sector="Consumer Defensive", is_active=True)
+        self.session.add(c_ahold)
+        self.session.commit()
+
+        resp = self.client.get("/stocks/AD")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Koninklijke Ahold Delhaize N.V.", resp.text)
 
     def test_stocks_sync_state_filter(self):
         # Configure last_synced_at timestamps

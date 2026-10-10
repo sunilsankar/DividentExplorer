@@ -384,6 +384,30 @@ class RepositoryTestCase(unittest.TestCase):
         self.assertIsNotNone(comp_repo.get_by_ticker("BAD2"))
         self.assertIsNotNone(comp_repo.get_by_ticker("SCHD"))
 
+    def test_ticker_search_relevance_ranking_and_base_ticker_lookup(self) -> None:
+        comp_repo = CompanyRepository(self.session)
+        exch_ams = ExchangeRepository(self.session).upsert(code="AMS", name="Euronext Amsterdam")
+        exch_nyse = ExchangeRepository(self.session).upsert(code="NYSE", name="New York Stock Exchange")
+        self.session.commit()
+
+        c_ahold = Company(ticker="AD.AS", name="Koninklijke Ahold Delhaize N.V.", exchange_id=exch_ams.id, sector="Consumer Defensive", is_active=True)
+        c_adp = Company(ticker="ADP", name="Automatic Data Processing", exchange_id=exch_nyse.id, sector="Technology", is_active=True)
+        c_broadcom = Company(ticker="AVGO", name="Broadcom Inc.", exchange_id=exch_nyse.id, sector="Technology", is_active=True)
+        self.session.add_all([c_ahold, c_adp, c_broadcom])
+        self.session.commit()
+
+        # 1. get_by_ticker("AD") should resolve to AD.AS
+        found = comp_repo.get_by_ticker("AD")
+        self.assertIsNotNone(found)
+        self.assertEqual(found.ticker, "AD.AS")
+
+        # 2. list_companies(search="AD") should rank AD.AS first, ADP second, Broadcom third
+        results = comp_repo.list_companies(search="AD")
+        self.assertGreaterEqual(len(results), 3)
+        self.assertEqual(results[0].ticker, "AD.AS")
+        self.assertEqual(results[1].ticker, "ADP")
+        self.assertEqual(results[2].ticker, "AVGO")
+
 
 if __name__ == "__main__":
     unittest.main()

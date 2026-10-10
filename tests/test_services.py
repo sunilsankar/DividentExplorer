@@ -154,6 +154,34 @@ class ServicesTestCase(unittest.TestCase):
         self.assertEqual(deleted, 1)
         self.assertEqual(self.sync_service.count_unclassified(grace_hours=24), 0)
 
+    def test_search_companies_with_exchange_filter_and_base_ticker_detail(self):
+        ex_ams = ExchangeRepository(self.session).upsert(code="AMS", name="Euronext Amsterdam")
+        ex_nyse = ExchangeRepository(self.session).upsert(code="NYSE", name="New York Stock Exchange")
+        comp_repo = CompanyRepository(self.session)
+        comp_repo.upsert(ticker="AD.AS", exchange_id=ex_ams.id, name="Ahold Delhaize", sector="Consumer Defensive")
+        comp_repo.upsert(ticker="ADP", exchange_id=ex_nyse.id, name="Automatic Data Processing", sector="Technology")
+        self.session.commit()
+
+        # Search without exchange filter finds both
+        all_res = self.stock_service.search_companies(query="AD")
+        self.assertEqual(all_res["total"], 2)
+        self.assertEqual(all_res["items"][0].ticker, "AD.AS")
+
+        # Search with AMS filter finds only AD.AS
+        ams_res = self.stock_service.search_companies(query="AD", exchange="AMS")
+        self.assertEqual(ams_res["total"], 1)
+        self.assertEqual(ams_res["items"][0].ticker, "AD.AS")
+
+        # Search with NYSE filter finds only ADP
+        nyse_res = self.stock_service.search_companies(query="AD", exchange="NYSE")
+        self.assertEqual(nyse_res["total"], 1)
+        self.assertEqual(nyse_res["items"][0].ticker, "ADP")
+
+        # get_company_detail("AD") resolves to AD.AS
+        detail = self.stock_service.get_company_detail("AD")
+        self.assertIsNotNone(detail)
+        self.assertEqual(detail["company"].ticker, "AD.AS")
+
 
 if __name__ == "__main__":
     unittest.main()
