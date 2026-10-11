@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}India Dividend Dashboard &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div>
+    <h1 class="section-title" style="margin: 0;">India Market Overview 🇮🇳</h1>
+    <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--text-muted);">
+      Dividend payers listed on the National Stock Exchange of India (NSE) &amp; Bombay Stock Exchange (BSE) in Indian Rupees (₹).
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+    <form action="/stocks" method="get" style="display: flex; gap: 0.5rem; margin: 0;">
+      <input type="hidden" name="exchange" value="NSE">
+      <input type="text" name="q" placeholder="Search Indian stock (e.g. ITC, TCS)..." style="width: 260px;">
+      <button type="submit">Search</button>
+    </form>
+  </div>
+</div>
+
+<div id="india-sync-notice"></div>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-title">Tracked Indian Companies</div>
+    <div class="card-value">{{ total_companies }}</div>
+    <div class="card-subtext">NSE &amp; BSE registered</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Average Dividend Yield</div>
+    <div class="card-value">{{ "%.2f"|format(avg_yield * 100) }}%</div>
+    <div class="card-subtext">Across top dividend payers</div>
+  </div>
+  <div class="card">
+    <div class="card-title">High-Yield Stocks (&ge; 6%)</div>
+    <div class="card-value">{{ high_yield_count }}</div>
+    <div class="card-subtext">PSUs, Energy &amp; Materials</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Dividend Quality Leaders</div>
+    <div class="card-value">{{ quality_leaders|length }}</div>
+    <div class="card-subtext">Score &ge; 70 (sustainable payout)</div>
+  </div>
+</div>
+
+<!-- Quick Sync & Status Card -->
+<div class="card" style="margin-bottom: 2rem; padding: 1rem 1.25rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <h3 style="margin: 0 0 0.25rem; font-size: 1rem;">Exchange Ingestion Status</h3>
+      <div style="font-size: 0.85rem; color: var(--text-muted); display: flex; gap: 1.5rem; flex-wrap: wrap;">
+        <span><strong>NSE:</strong> {{ nse_progress.total_companies or 0 }} companies {% if nse_progress.last_synced %}&bull; synced {{ nse_progress.last_synced[:16] }}{% else %}&bull; not synced yet{% endif %}</span>
+        <span><strong>BSE:</strong> {{ bse_progress.total_companies or 0 }} companies {% if bse_progress.last_synced %}&bull; synced {{ bse_progress.last_synced[:16] }}{% else %}&bull; not synced yet{% endif %}</span>
+      </div>
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+      <form hx-post="/sync/trigger" hx-target="#india-sync-notice" hx-swap="innerHTML" style="margin: 0; display: inline-flex; gap: 0.5rem;">
+        <input type="hidden" name="exchange" value="NSE">
+        <input type="hidden" name="sync_mode" value="incremental">
+        <button type="submit" class="button-secondary" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">Sync NSE (.NS)</button>
+      </form>
+      <form hx-post="/sync/trigger" hx-target="#india-sync-notice" hx-swap="innerHTML" style="margin: 0; display: inline-flex; gap: 0.5rem;">
+        <input type="hidden" name="exchange" value="BSE">
+        <input type="hidden" name="sync_mode" value="incremental">
+        <button type="submit" class="button-secondary" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">Sync BSE (.BO)</button>
+      </form>
+      <a href="/sync" class="button-secondary" style="text-decoration: none; font-size: 0.85rem; padding: 0.35rem 0.75rem;">Full Sync Dashboard &rarr;</a>
+    </div>
+  </div>
+</div>
+
+<div class="section-header">
+  <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+    <h2 class="section-title" style="margin: 0;">Top Indian Dividend Yields</h2>
+    <select name="exchange"
+            hx-get="/india/top-yields"
+            hx-target="#india-top-yields-container"
+            hx-swap="innerHTML"
+            style="padding: 0.3rem 0.6rem; font-size: 0.85rem;">
+      <option value="">All Indian Exchanges (NSE + BSE)</option>
+      {% for ex in exchanges %}
+      <option value="{{ ex.code }}" {% if selected_exchange == ex.code %}selected{% endif %}>{{ ex.code }} - {{ ex.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <a href="/stocks?exchange=NSE&sort=yield">View all Indian dividend stocks &rarr;</a>
+</div>
+
+<div id="india-top-yields-container">
+  {% include "partials/top_yields_table.html" %}
+</div>
+
+<div class="section-header" style="margin-top: 2rem;">
+  <h2 class="section-title">Indian Dividend Quality Leaders</h2>
+  <a href="/stocks?exchange=NSE&sort=quality">View all by quality score &rarr;</a>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Company</th>
+      <th title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">Quality Score <span class="info-tooltip">!</span></th>
+      <th>Years Growing</th>
+      <th>Payout Ratio</th>
+      <th>Current Yield</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in quality_leaders %}
+    <tr>
+      <td><strong><a href="/stocks/{{ item.ticker }}">{{ item.ticker }}</a></strong></td>
+      <td>{{ item.company_name }}</td>
+      <td>
+        <span class="badge {% if item.dividend_quality_score and item.dividend_quality_score >= 70 %}badge-success{% elif item.dividend_quality_score and item.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">
+          {{ item.dividend_quality_score if item.dividend_quality_score is not none else 'N/A' }}
+        </span>
+      </td>
+      <td>{{ item.years_growing }} years</td>
+      <td>{% if item.payout_ratio is not none %}{{ "%.1f"|format(item.payout_ratio * 100) }}%{% else %}—{% endif %}</td>
+      <td>{% if item.current_yield is not none %}<span class="badge badge-success">{{ "%.2f"|format(item.current_yield * 100) }}%</span>{% else %}—{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+        No Indian quality leader data available yet. Click "Sync NSE" above to discover and ingest dividend stocks.
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<details class="help-footer">
+  <summary>About Indian Dividend Stocks &amp; Exchange Ingestion</summary>
+  <div style="margin-top: 0.75rem; font-size: 0.85rem; line-height: 1.5;">
+    <p>
+      <strong>Exchanges:</strong> The National Stock Exchange of India (NSE) uses ticker suffix <code>.NS</code> (e.g., <code>ITC.NS</code>, <code>TCS.NS</code>), while the Bombay Stock Exchange (BSE) uses suffix <code>.BO</code> (e.g., <code>ITC.BO</code>).
+    </p>
+    <p>
+      <strong>Currency:</strong> All prices, dividends, and cash flows for Indian stocks are tracked in Indian Rupees (<span class="code-inline">₹</span> / INR).
+    </p>
+    <p>
+      <strong>High Yields &amp; PSUs:</strong> Indian Public Sector Undertakings (PSUs) such as Coal India, REC, PFC, and Power Grid frequently pay government-mandated high dividends (6%–12% yields). Quality scores evaluate payout sustainability to differentiate robust cash flows from dividend traps.
+    </p>
+  </div>
+</details>
+{% endblock %}

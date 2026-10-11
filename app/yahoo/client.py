@@ -179,6 +179,26 @@ DEFAULT_EXCHANGE_TICKERS: Dict[str, List[DiscoveredTicker]] = {
         DiscoveredTicker("SDY", "SPDR S&P Dividend ETF", "ARCA", asset_type="ETF"),
         DiscoveredTicker("NOBL", "ProShares S&P 500 Dividend Aristocrats ETF", "ARCA", asset_type="ETF"),
     ],
+    "NSE": [
+        DiscoveredTicker("ITC.NS", "ITC Limited", "NSE"),
+        DiscoveredTicker("TCS.NS", "Tata Consultancy Services Limited", "NSE"),
+        DiscoveredTicker("INFY.NS", "Infosys Limited", "NSE"),
+        DiscoveredTicker("COALINDIA.NS", "Coal India Limited", "NSE"),
+        DiscoveredTicker("VEDL.NS", "Vedanta Limited", "NSE"),
+        DiscoveredTicker("POWERGRID.NS", "Power Grid Corporation of India Limited", "NSE"),
+        DiscoveredTicker("HINDUNILVR.NS", "Hindustan Unilever Limited", "NSE"),
+        DiscoveredTicker("RECLTD.NS", "REC Limited", "NSE"),
+        DiscoveredTicker("IOC.NS", "Indian Oil Corporation Limited", "NSE"),
+        DiscoveredTicker("NTPC.NS", "NTPC Limited", "NSE"),
+    ],
+    "BSE": [
+        DiscoveredTicker("ITC.BO", "ITC Limited", "BSE"),
+        DiscoveredTicker("TCS.BO", "Tata Consultancy Services Limited", "BSE"),
+        DiscoveredTicker("INFY.BO", "Infosys Limited", "BSE"),
+        DiscoveredTicker("COALINDIA.BO", "Coal India Limited", "BSE"),
+        DiscoveredTicker("VEDL.BO", "Vedanta Limited", "BSE"),
+        DiscoveredTicker("POWERGRID.BO", "Power Grid Corporation of India Limited", "BSE"),
+    ],
 }
 
 
@@ -192,6 +212,8 @@ EXCHANGE_SCREENER_CODES: Dict[str, List[str]] = {
     "FRA": ["FRA", "GER"],
     "BIT": ["MIL"],
     "LSE": ["LSE", "IOB"],
+    "NSE": ["NSI"],
+    "BSE": ["BSE"],
 }
 
 

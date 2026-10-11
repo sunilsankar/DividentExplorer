@@ -128,7 +128,9 @@ def seed() -> None:
         fra = ex_repo.get_or_create(code="FRA", name="XETRA / Frankfurt", country="Germany", timezone="Europe/Berlin", currency="EUR")
         bit = ex_repo.get_or_create(code="BIT", name="Borsa Italiana", country="Italy", timezone="Europe/Rome", currency="EUR")
         lse = ex_repo.get_or_create(code="LSE", name="London Stock Exchange", country="UK", timezone="Europe/London", currency="GBP")
-        ex_map = {"NYSE": nyse, "NASDAQ": nasdaq, "ARCA": arca, "AMS": ams, "PAR": par, "FRA": fra, "BIT": bit, "LSE": lse}
+        nse = ex_repo.get_or_create(code="NSE", name="National Stock Exchange of India", country="India", timezone="Asia/Kolkata", currency="INR")
+        bse = ex_repo.get_or_create(code="BSE", name="Bombay Stock Exchange", country="India", timezone="Asia/Kolkata", currency="INR")
+        ex_map = {"NYSE": nyse, "NASDAQ": nasdaq, "ARCA": arca, "AMS": ams, "PAR": par, "FRA": fra, "BIT": bit, "LSE": lse, "NSE": nse, "BSE": bse}
         session.commit()
 
         today = date.today()

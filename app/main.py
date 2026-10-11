@@ -35,6 +35,8 @@ async def lifespan(app: FastAPI):
         repo.get_or_create(code="FRA", name="XETRA / Frankfurt", country="Germany", timezone="Europe/Berlin", currency="EUR")
         repo.get_or_create(code="BIT", name="Borsa Italiana", country="Italy", timezone="Europe/Rome", currency="EUR")
         repo.get_or_create(code="LSE", name="London Stock Exchange", country="UK", timezone="Europe/London", currency="GBP")
+        repo.get_or_create(code="NSE", name="National Stock Exchange of India", country="India", timezone="Asia/Kolkata", currency="INR")
+        repo.get_or_create(code="BSE", name="Bombay Stock Exchange", country="India", timezone="Asia/Kolkata", currency="INR")
         db.commit()
 
     runner = get_auto_cleanup_runner()

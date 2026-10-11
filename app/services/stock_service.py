@@ -287,7 +287,12 @@ class StockService:
             "industry_avg_quality": avg_quality,
         }
 
-    def get_top_yields(self, limit: int = 20, exchange_code: Optional[str] = None) -> Sequence[tuple[Company, DividendMetric]]:
+    def get_top_yields(
+        self,
+        limit: int = 20,
+        exchange_code: Optional[str] = None,
+        country: Optional[str] = None,
+    ) -> Sequence[tuple[Company, DividendMetric]]:
         # ponytail: filter suspect stocks and implausible yields >50% from leaderboards
         stmt = (
             select(Company, DividendMetric)
@@ -301,6 +306,8 @@ class StockService:
         )
         if exchange_code:
             stmt = stmt.join(Exchange, Company.exchange_id == Exchange.id).where(Exchange.code == exchange_code.upper())
+        elif country:
+            stmt = stmt.join(Exchange, Company.exchange_id == Exchange.id).where(Exchange.country.ilike(country))
         stmt = stmt.order_by(desc(DividendMetric.current_yield)).limit(limit)
         return self.session.execute(stmt).all()
 
@@ -318,7 +325,12 @@ class StockService:
         )
         return self.session.execute(stmt).all()
 
-    def get_quality_leaders(self, limit: int = 20) -> Sequence[tuple[Company, DividendMetric]]:
+    def get_quality_leaders(
+        self,
+        limit: int = 20,
+        exchange_code: Optional[str] = None,
+        country: Optional[str] = None,
+    ) -> Sequence[tuple[Company, DividendMetric]]:
         stmt = (
             select(Company, DividendMetric)
             .join(DividendMetric, DividendMetric.company_id == Company.id)
@@ -326,9 +338,12 @@ class StockService:
                 DividendMetric.quality_score.is_not(None),
                 DividendMetric.is_suspect.is_(False),
             )
-            .order_by(desc(DividendMetric.quality_score))
-            .limit(limit)
         )
+        if exchange_code:
+            stmt = stmt.join(Exchange, Company.exchange_id == Exchange.id).where(Exchange.code == exchange_code.upper())
+        elif country:
+            stmt = stmt.join(Exchange, Company.exchange_id == Exchange.id).where(Exchange.country.ilike(country))
+        stmt = stmt.order_by(desc(DividendMetric.quality_score)).limit(limit)
         return self.session.execute(stmt).all()
 
     def get_dividend_calendar(

@@ -60,6 +60,14 @@ class TestYahooClient(unittest.TestCase):
         self.assertTrue(len(nyse) > 0)
         self.assertTrue(any(t.ticker == "JNJ" for t in nyse))
 
+        nse = client.discover_tickers("NSE")
+        self.assertTrue(len(nse) > 0)
+        self.assertTrue(any(t.ticker == "ITC.NS" for t in nse))
+
+        bse = client.discover_tickers("BSE")
+        self.assertTrue(len(bse) > 0)
+        self.assertTrue(any(t.ticker == "ITC.BO" for t in bse))
+
     @patch("app.yahoo.client.yf.screen")
     def test_discover_tickers_pagination_and_rate_limiter(self, mock_screen):
         mock_screen.side_effect = [

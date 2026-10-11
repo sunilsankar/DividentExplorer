@@ -28,7 +28,7 @@ from app.sync.queue import SyncQueue, SyncRunManager, WorkerHeartbeatManager
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
-CURRENCY_SYMBOLS = {"EUR": "€", "GBP": "£", "USD": "$"}
+CURRENCY_SYMBOLS = {"EUR": "€", "GBP": "£", "USD": "$", "INR": "₹"}
 
 
 def currency_symbol(currency: Optional[str]) -> str:
@@ -116,6 +116,113 @@ def dashboard_top_yields_partial(request: Request, exchange: Optional[str] = Non
             "annual_dividend": metric.annual_dividend if metric else None,
             "dividend_quality_score": metric.quality_score if metric else None,
             "currency": comp.currency,
+        }
+        for comp, metric in raw_top_yields
+    ]
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/top_yields_table.html",
+        context={"top_yields": top_yields},
+    )
+
+
+@router.get("/india", response_class=HTMLResponse)
+@router.get("/dashboard/india", response_class=HTMLResponse)
+def india_dashboard_view(request: Request, exchange: Optional[str] = None, db: Session = Depends(get_db)):
+    stock_service = StockService(db)
+    sync_service = SyncService(db)
+    comp_repo = CompanyRepository(db)
+
+    indian_exchanges = [ex for ex in stock_service.list_exchanges() if (ex.country or "").lower() == "india" or ex.code in ("NSE", "BSE")]
+    indian_exchange_codes = [ex.code for ex in indian_exchanges] or ["NSE", "BSE"]
+
+    india_companies = [c for c in comp_repo.list_companies(limit=10000) if c.exchange and c.exchange.code in indian_exchange_codes]
+    total_companies = len(india_companies)
+
+    selected_exchange = exchange.strip().upper() if exchange else ""
+    if selected_exchange and selected_exchange not in indian_exchange_codes:
+        selected_exchange = ""
+
+    raw_top_yields = stock_service.get_top_yields(
+        limit=10,
+        exchange_code=selected_exchange or None,
+        country="India" if not selected_exchange else None,
+    )
+    top_yields = [
+        {
+            "ticker": comp.ticker,
+            "company_name": comp.name,
+            "sector": comp.sector,
+            "current_yield": metric.current_yield if metric else 0.0,
+            "annual_dividend": metric.annual_dividend if metric else None,
+            "dividend_quality_score": metric.quality_score if metric else None,
+            "currency": comp.currency or "INR",
+        }
+        for comp, metric in raw_top_yields
+    ]
+
+    raw_quality_leaders = stock_service.get_quality_leaders(
+        limit=10,
+        exchange_code=selected_exchange or None,
+        country="India" if not selected_exchange else None,
+    )
+    quality_leaders = [
+        {
+            "ticker": comp.ticker,
+            "company_name": comp.name,
+            "dividend_quality_score": metric.quality_score if metric else None,
+            "years_growing": metric.years_growing if metric else 0,
+            "payout_ratio": metric.payout_ratio if metric else None,
+            "current_yield": metric.current_yield if metric else None,
+            "currency": comp.currency or "INR",
+        }
+        for comp, metric in raw_quality_leaders
+    ]
+
+    high_yield_count = sum(1 for t in top_yields if (t.get("current_yield") or 0.0) >= 0.06)
+    avg_yield = 0.0
+    if top_yields:
+        avg_yield = sum(t["current_yield"] for t in top_yields if t.get("current_yield")) / len(top_yields)
+
+    nse_progress = sync_service.get_exchange_progress("NSE")
+    bse_progress = sync_service.get_exchange_progress("BSE")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="india_dashboard.html",
+        context={
+            "active_tab": "india",
+            "total_companies": total_companies,
+            "avg_yield": avg_yield,
+            "high_yield_count": high_yield_count,
+            "top_yields": top_yields,
+            "quality_leaders": quality_leaders,
+            "exchanges": indian_exchanges,
+            "selected_exchange": selected_exchange,
+            "nse_progress": nse_progress,
+            "bse_progress": bse_progress,
+        },
+    )
+
+
+@router.get("/india/top-yields", response_class=HTMLResponse)
+def india_top_yields_partial(request: Request, exchange: Optional[str] = None, db: Session = Depends(get_db)):
+    stock_service = StockService(db)
+    selected_exchange = exchange.strip().upper() if exchange else ""
+    raw_top_yields = stock_service.get_top_yields(
+        limit=10,
+        exchange_code=selected_exchange or None,
+        country="India" if not selected_exchange else None,
+    )
+    top_yields = [
+        {
+            "ticker": comp.ticker,
+            "company_name": comp.name,
+            "sector": comp.sector,
+            "current_yield": metric.current_yield if metric else 0.0,
+            "annual_dividend": metric.annual_dividend if metric else None,
+            "dividend_quality_score": metric.quality_score if metric else None,
+            "currency": comp.currency or "INR",
         }
         for comp, metric in raw_top_yields
     ]

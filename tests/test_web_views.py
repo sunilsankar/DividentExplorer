@@ -199,6 +199,25 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertEqual(resp_empty.status_code, 200)
         self.assertIn("No yield data available", resp_empty.text)
 
+    def test_india_dashboard_view(self):
+        resp = self.client.get("/india")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("India Market Overview", resp.text)
+        self.assertIn("NSE", resp.text)
+        self.assertIn("BSE", resp.text)
+        self.assertIn("₹", resp.text)
+
+        resp_alias = self.client.get("/dashboard/india")
+        self.assertEqual(resp_alias.status_code, 200)
+        self.assertIn("India Market Overview", resp_alias.text)
+
+    def test_india_top_yields_partial(self):
+        resp = self.client.get("/india/top-yields")
+        self.assertEqual(resp.status_code, 200)
+
+        resp_nse = self.client.get("/india/top-yields?exchange=NSE")
+        self.assertEqual(resp_nse.status_code, 200)
+
     def test_stocks_view(self):
         resp = self.client.get("/stocks")
         self.assertEqual(resp.status_code, 200)
