@@ -48,15 +48,15 @@
       {% endfor %}
     </tr>
     <tr>
-      <td><strong>Quality Score</strong></td>
+      <td title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record."><strong>Quality Score <span class="info-tooltip">!</span></strong></td>
       <td style="background-color: rgba(56, 189, 248, 0.05);">
-        <span class="badge {% if comparison.target.dividend_quality_score and comparison.target.dividend_quality_score >= 70 %}badge-success{% elif comparison.target.dividend_quality_score and comparison.target.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+        <span class="badge {% if comparison.target.dividend_quality_score and comparison.target.dividend_quality_score >= 70 %}badge-success{% elif comparison.target.dividend_quality_score and comparison.target.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">
           {{ comparison.target.dividend_quality_score if comparison.target.dividend_quality_score is not none else 'N/A' }}
         </span>
       </td>
       {% for peer in comparison.peers %}
       <td>
-        <span class="badge {% if peer.dividend_quality_score and peer.dividend_quality_score >= 70 %}badge-success{% elif peer.dividend_quality_score and peer.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+        <span class="badge {% if peer.dividend_quality_score and peer.dividend_quality_score >= 70 %}badge-success{% elif peer.dividend_quality_score and peer.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">
           {{ peer.dividend_quality_score if peer.dividend_quality_score is not none else 'N/A' }}
         </span>
       </td>

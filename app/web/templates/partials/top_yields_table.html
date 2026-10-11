@@ -6,7 +6,7 @@
       <th>Sector</th>
       <th>Current Yield</th>
       <th>Annual Dividend</th>
-      <th>Quality Score <span title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record." style="cursor: help; font-weight: bold; color: var(--accent-color);">!</span></th>
+      <th title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">Quality Score <span class="info-tooltip">!</span></th>
     </tr>
   </thead>
   <tbody>
@@ -18,7 +18,7 @@
       <td><span class="badge badge-success">{{ "%.2f"|format(item.current_yield * 100) }}%</span></td>
       <td>{% if item.annual_dividend is not none %}{{ item.currency|currency_symbol }}{{ "%.2f"|format(item.annual_dividend) }}{% else %}—{% endif %}</td>
       <td>
-        <span class="badge {% if item.dividend_quality_score and item.dividend_quality_score >= 70 %}badge-success{% elif item.dividend_quality_score and item.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+        <span class="badge {% if item.dividend_quality_score and item.dividend_quality_score >= 70 %}badge-success{% elif item.dividend_quality_score and item.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">
           {{ item.dividend_quality_score if item.dividend_quality_score is not none else 'N/A' }}
         </span>
       </td>

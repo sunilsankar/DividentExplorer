@@ -377,6 +377,22 @@ button:hover {
   color: var(--text-primary);
 }
 
+.info-tooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent-color);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: help;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+
 /* Calendar styling */
 .calendar-controls {
   display: flex;

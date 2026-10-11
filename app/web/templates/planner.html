@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Dividend Planner &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <h1 class="section-title">Dividend Income Planner</h1>
+</div>
+
+<form method="get" action="/planner" class="form-group" style="margin-bottom: 1.5rem;">
+  <label style="display:flex;flex-direction:column;gap:0.25rem;font-size:0.8rem;color:var(--text-muted);">
+    Monthly Target
+    <input type="number" name="target" value="{{ target|int }}" min="1" step="10" style="width:120px;">
+  </label>
+  <label style="display:flex;flex-direction:column;gap:0.25rem;font-size:0.8rem;color:var(--text-muted);">
+    Asset Type
+    <select name="asset_type">
+      <option value="" {% if not selected_asset_type %}selected{% endif %}>Both (Stocks & ETFs)</option>
+      <option value="STOCK" {% if selected_asset_type == 'STOCK' %}selected{% endif %}>Stocks Only</option>
+      <option value="ETF" {% if selected_asset_type == 'ETF' %}selected{% endif %}>ETFs Only</option>
+    </select>
+  </label>
+  <label style="display:flex;flex-direction:column;gap:0.25rem;font-size:0.8rem;color:var(--text-muted);">
+    Currency
+    <select name="currency">
+      <option value="" {% if not selected_currency %}selected{% endif %}>All</option>
+      {% for c in currencies %}
+      <option value="{{ c }}" {% if selected_currency == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label style="display:flex;flex-direction:column;gap:0.25rem;font-size:0.8rem;color:var(--text-muted);">
+    Holdings
+    <select name="holdings">
+      {% for n in [4, 6, 8, 10, 12] %}
+      <option value="{{ n }}" {% if num_holdings == n %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit" style="align-self:flex-end;">Calculate</button>
+</form>
+
+<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+  <a href="/planner?target=50&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;50/mo</a>
+  <a href="/planner?target=100&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;100/mo</a>
+  <a href="/planner?target=250&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;250/mo</a>
+  <a href="/planner?target=500&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;500/mo</a>
+  <a href="/planner?target=1000&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;1,000/mo</a>
+</div>
+
+{% if holdings %}
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;">
+  <div class="card">
+    <div class="card-title">Capital Needed</div>
+    <div class="card-value" style="font-size:1.8rem;">{{ "€%.0f"|format(total_capital) }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Portfolio Yield</div>
+    <div class="card-value" style="font-size:1.8rem;color:var(--accent-color);">{{ "%.2f"|format(portfolio_yield) }}%</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Monthly Income</div>
+    <div class="card-value" style="font-size:1.8rem;">{{ "€%.2f"|format(actual_monthly) }}</div>
+    <div class="card-subtext">Target: €{{ "%.0f"|format(target) }}/mo</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Daily Income</div>
+    <div class="card-value" style="font-size:1.8rem;">{{ "€%.2f"|format(actual_daily) }}</div>
+    <div class="card-subtext">Avg per calendar day</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Annual Income</div>
+    <div class="card-value" style="font-size:1.8rem;">{{ "€%.0f"|format(total_income) }}</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Price</th>
+      <th>Div/Share</th>
+      <th>Yield</th>
+      <th title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">Quality <span class="info-tooltip">!</span></th>
+      <th>Shares</th>
+      <th>Capital</th>
+      <th>Annual Income</th>
+      <th>Monthly</th>
+      <th>Daily</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for h in holdings %}
+    <tr>
+      <td><strong><a href="/stocks/{{ h.ticker }}">{{ h.ticker }}</a></strong></td>
+      <td>{{ h.name }}</td>
+      <td>
+        {% if h.asset_type == 'ETF' %}
+          <span class="badge badge-warning">ETF</span>
+        {% else %}
+          <span class="badge badge-neutral">Stock</span>
+        {% endif %}
+      </td>
+      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.price) }}</td>
+      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.annual_dividend) }}</td>
+      <td><span class="badge badge-success">{{ "%.2f"|format(h['yield'] * 100) }}%</span></td>
+      <td>
+        <span class="badge {% if h.quality and h.quality >= 70 %}badge-success{% elif h.quality and h.quality >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">
+          {{ h.quality if h.quality is not none else 'N/A' }}
+        </span>
+      </td>
+      <td><strong>{{ h.shares }}</strong></td>
+      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.capital) }}</td>
+      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.income) }}</td>
+      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.monthly_income) }}</td>
+      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.daily_income) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="card" style="margin-top:1rem;">
+  <div class="card-subtext">
+    Suggested portfolio of {{ holdings|length }} diversified dividend-paying assets (max 2 per sector) selected from tracked stocks and ETFs with positive yield and quality score. Yields are trailing 12-month. Capital estimates use latest closing prices. This is not financial advice.
+  </div>
+</div>
+{% else %}
+<div class="empty-state" style="padding:3rem;">
+  <p>No dividend-paying assets found matching your criteria. Try adjusting filters or sync more exchanges.</p>
+</div>
+{% endif %}
+{% endblock %}

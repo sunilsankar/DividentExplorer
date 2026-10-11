@@ -105,10 +105,10 @@
   </div>
 
   <div class="card">
-    <div class="card-title">Dividend Quality Score</div>
+    <div class="card-title" title="Quality Score (0-100) measures dividend safety: payout ratio health (25 pts), dividend track record & growth (35 pts), yield sustainability (25 pts), and financial health (15 pts). Missing data or non-payers score 0.">Dividend Quality Score <span class="info-tooltip" title="Quality Score (0-100) measures dividend safety: payout ratio health (25 pts), dividend track record & growth (35 pts), yield sustainability (25 pts), and financial health (15 pts). Missing data or non-payers score 0.">!</span></div>
     <div class="card-value">
       {% if metric and metric.dividend_quality_score is not none %}
-        <span class="badge {% if metric.dividend_quality_score >= 70 %}badge-success{% elif metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" style="font-size: 1.5rem; padding: 0.2rem 0.6rem;">
+        <span class="badge {% if metric.dividend_quality_score >= 70 %}badge-success{% elif metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" style="font-size: 1.5rem; padding: 0.2rem 0.6rem;" title="Quality Score (0-100) measures dividend safety: payout ratio health (25 pts), dividend track record & growth (35 pts), yield sustainability (25 pts), and financial health (15 pts). Missing data or non-payers score 0.">
           {{ metric.dividend_quality_score }} / 100
         </span>
       {% else %}
@@ -312,7 +312,7 @@
       <th>Ticker</th>
       <th>Company</th>
       <th>Current Yield</th>
-      <th>Quality Score</th>
+      <th title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">Quality Score <span class="info-tooltip">!</span></th>
       <th>Payout Ratio</th>
     </tr>
   </thead>
@@ -323,7 +323,7 @@
       <td>{{ peer.name }}</td>
       <td>{{ ("%.2f%%"|format(peer.metric.current_yield * 100)) if peer.metric and peer.metric.current_yield is not none else '—' }}</td>
       <td>
-        <span class="badge {% if peer.metric and peer.metric.dividend_quality_score and peer.metric.dividend_quality_score >= 70 %}badge-success{% elif peer.metric and peer.metric.dividend_quality_score and peer.metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+        <span class="badge {% if peer.metric and peer.metric.dividend_quality_score and peer.metric.dividend_quality_score >= 70 %}badge-success{% elif peer.metric and peer.metric.dividend_quality_score and peer.metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">
           {{ peer.metric.dividend_quality_score if peer.metric and peer.metric.dividend_quality_score is not none else 'N/A' }}
         </span>
       </td>

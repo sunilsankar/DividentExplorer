@@ -12,7 +12,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.db.models import SyncJob, utcnow
+from app.db.models import Company, DividendMetric, PriceHistory, SyncJob, utcnow
 from app.db.repositories import (
     ChangeRepository,
     CompanyRepository,
@@ -673,5 +673,127 @@ def changes_view(
             "active_tab": "changes",
             "changes": changes,
             "selected_type": change_type,
+        },
+    )
+
+
+def _safe_float(val: Optional[str], default: Optional[float] = None) -> Optional[float]:
+    if not val or not val.strip():
+        return default
+    try:
+        return float(val.strip())
+    except ValueError:
+        return default
+
+
+@router.get("/planner", response_class=HTMLResponse)
+def planner_view(
+    request: Request,
+    target: Optional[str] = "100",
+    asset_type: Optional[str] = None,
+    currency: Optional[str] = None,
+    holdings: Optional[str] = "6",
+    db: Session = Depends(get_db),
+):
+    monthly_target = _safe_float(target, 100.0) or 100.0
+    num_holdings = max(1, min(20, int(_safe_float(holdings, 6) or 6)))
+    norm_asset = asset_type.strip().upper() if asset_type else None
+    norm_currency = currency.strip().upper() if currency else None
+
+    # ponytail: subquery for latest close price per company; upgrade to materialized view if slow at scale
+    latest_price_sq = (
+        select(PriceHistory.close)
+        .where(PriceHistory.company_id == Company.id)
+        .order_by(PriceHistory.date.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+
+    stmt = (
+        select(Company, DividendMetric, latest_price_sq.label("latest_price"))
+        .join(DividendMetric, DividendMetric.company_id == Company.id)
+        .where(
+            DividendMetric.current_yield.is_not(None),
+            DividendMetric.current_yield > 0,
+            DividendMetric.current_yield <= 0.15,
+            DividendMetric.is_suspect.is_(False),
+            DividendMetric.annual_dividend.is_not(None),
+            DividendMetric.annual_dividend > 0,
+            latest_price_sq.is_not(None),
+            latest_price_sq > 0,
+        )
+    )
+    if norm_asset in ("STOCK", "ETF"):
+        stmt = stmt.where(Company.asset_type == norm_asset)
+    if norm_currency:
+        stmt = stmt.where(Company.currency == norm_currency)
+    stmt = stmt.order_by(desc(DividendMetric.current_yield))
+
+    candidates = db.execute(stmt).all()
+
+    # ponytail: greedy sector diversification (max 2 per sector); upgrade to LP solver if precision needed
+    selected: list[dict] = []
+    sector_count: dict[str, int] = {}
+    for comp, metric, price in candidates:
+        if len(selected) >= num_holdings:
+            break
+        sector = comp.sector or "Unknown"
+        if sector_count.get(sector, 0) >= 2:
+            continue
+        sector_count[sector] = sector_count.get(sector, 0) + 1
+        selected.append({
+            "ticker": comp.ticker,
+            "name": comp.name,
+            "asset_type": comp.asset_type,
+            "currency": comp.currency,
+            "sector": sector,
+            "yield": metric.current_yield,
+            "annual_dividend": metric.annual_dividend,
+            "quality": metric.dividend_quality_score,
+            "price": round(float(price), 2),
+        })
+
+    annual_target = monthly_target * 12
+    per_asset_income = annual_target / max(len(selected), 1)
+
+    holdings_result: list[dict] = []
+    total_capital = 0.0
+    total_income = 0.0
+    for h in selected:
+        shares = max(1, int(per_asset_income / h["annual_dividend"] + 0.5))
+        capital = round(shares * h["price"], 2)
+        income = round(shares * h["annual_dividend"], 2)
+        total_capital += capital
+        total_income += income
+        holdings_result.append({
+            **h,
+            "shares": shares,
+            "capital": capital,
+            "income": income,
+            "monthly_income": round(income / 12, 2),
+            "daily_income": round(income / 365, 2),
+        })
+
+    portfolio_yield = round((total_income / total_capital * 100) if total_capital > 0 else 0, 2)
+    actual_monthly = round(total_income / 12, 2)
+    actual_daily = round(total_income / 365, 2)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="planner.html",
+        context={
+            "active_tab": "planner",
+            "target": monthly_target,
+            "annual_target": round(annual_target, 2),
+            "holdings": holdings_result,
+            "num_holdings": num_holdings,
+            "total_capital": round(total_capital, 2),
+            "total_income": round(total_income, 2),
+            "portfolio_yield": portfolio_yield,
+            "actual_monthly": actual_monthly,
+            "actual_daily": actual_daily,
+            "selected_asset_type": asset_type or "",
+            "selected_currency": currency or "",
+            "currencies": ["EUR", "USD", "GBP"],
         },
     )

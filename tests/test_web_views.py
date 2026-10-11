@@ -604,6 +604,24 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertEqual(resp_sort.status_code, 200)
         self.assertIn("PENNY", resp_sort.text)
 
+    def test_planner_view(self):
+        resp = self.client.get("/planner")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Dividend Income Planner", resp.text)
+        self.assertIn("JNJ", resp.text)
+        self.assertIn("Capital Needed", resp.text)
+        self.assertIn("Portfolio Yield", resp.text)
+        self.assertIn("Daily Income", resp.text)
+
+        # ETF only filter
+        resp_etf = self.client.get("/planner?asset_type=ETF")
+        self.assertEqual(resp_etf.status_code, 200)
+
+        # Custom target
+        resp_target = self.client.get("/planner?target=500")
+        self.assertEqual(resp_target.status_code, 200)
+        self.assertIn("€500/mo", resp_target.text)
+
 
 if __name__ == "__main__":
     unittest.main()

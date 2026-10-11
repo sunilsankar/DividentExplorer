@@ -10,7 +10,7 @@
       <th>Current Yield</th>
       <th>Annual Dividend</th>
       <th>Payout Ratio</th>
-      <th>Quality Score <span title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record." style="cursor: help; font-weight: bold; color: var(--accent-color);">!</span></th>
+      <th title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">Quality Score <span class="info-tooltip">!</span></th>
     </tr>
   </thead>
   <tbody>
@@ -56,7 +56,7 @@
       </td>
       <td>
         {% if s.metric and s.metric.dividend_quality_score is not none %}
-          <span class="badge {% if s.metric.dividend_quality_score >= 70 %}badge-success{% elif s.metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+          <span class="badge {% if s.metric.dividend_quality_score >= 70 %}badge-success{% elif s.metric.dividend_quality_score >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">
             {{ s.metric.dividend_quality_score }}
           </span>
         {% else %}
