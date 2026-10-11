@@ -613,8 +613,8 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("Portfolio Yield", resp.text)
         self.assertIn("Daily Income", resp.text)
         self.assertIn("What to Look For", resp.text)
+        self.assertIn("Portfolio Plan", resp.text)
         self.assertIn("All Eligible Assets", resp.text)
-        self.assertIn("Standalone Capital", resp.text)
 
         # ETF only filter
         resp_etf = self.client.get("/planner?asset_type=ETF")
@@ -624,6 +624,13 @@ class WebViewsTestCase(unittest.TestCase):
         resp_target = self.client.get("/planner?target=500")
         self.assertEqual(resp_target.status_code, 200)
         self.assertIn("€500/mo", resp_target.text)
+
+        # Tab 2: All Eligible Assets with pagination
+        resp_assets = self.client.get("/planner?tab=assets&page=1&page_size=15")
+        self.assertEqual(resp_assets.status_code, 200)
+        self.assertIn("All Eligible Dividend Assets", resp_assets.text)
+        self.assertIn("Showing", resp_assets.text)
+        self.assertIn("Standalone Capital", resp_assets.text)
 
 
 if __name__ == "__main__":

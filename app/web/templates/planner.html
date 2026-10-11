@@ -8,6 +8,7 @@
 </div>
 
 <form method="get" action="/planner" class="form-group" style="margin-bottom: 1.5rem;">
+  <input type="hidden" name="tab" value="{{ tab }}">
   <label style="display:flex;flex-direction:column;gap:0.25rem;font-size:0.8rem;color:var(--text-muted);">
     Monthly Target
     <input type="number" name="target" value="{{ target|int }}" min="1" step="10" style="width:120px;">
@@ -41,164 +42,233 @@
 </form>
 
 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
-  <a href="/planner?target=50&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;50/mo</a>
-  <a href="/planner?target=100&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;100/mo</a>
-  <a href="/planner?target=250&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;250/mo</a>
-  <a href="/planner?target=500&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;500/mo</a>
-  <a href="/planner?target=1000&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;1,000/mo</a>
+  <a href="/planner?tab={{ tab }}&target=50&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;50/mo</a>
+  <a href="/planner?tab={{ tab }}&target=100&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;100/mo</a>
+  <a href="/planner?tab={{ tab }}&target=250&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;250/mo</a>
+  <a href="/planner?tab={{ tab }}&target=500&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;500/mo</a>
+  <a href="/planner?tab={{ tab }}&target=1000&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;1,000/mo</a>
 </div>
 
-{% if holdings %}
-<div class="card" style="margin-bottom:1.5rem;border-left:4px solid var(--accent-color);">
-  <div class="card-title" style="margin-bottom:0.5rem;">What to Look For</div>
-  <div style="display:flex;gap:1.5rem;flex-wrap:wrap;font-size:0.85rem;color:var(--text-muted);">
-    <span><span class="badge badge-success">Aristocrat</span> 25+ years of consecutive dividend growth</span>
-    <span><span class="badge badge-success">Safe Payout</span> Payout ratio &le; 60% of earnings</span>
-    <span><span class="badge badge-success">High Yield</span> Trailing yield &ge; 5%</span>
-    <span><span class="badge badge-success">High Quality</span> Quality score &ge; 80/100</span>
-  </div>
+<!-- Tab Navigation Bar -->
+<div class="tab-bar">
+  <a href="/planner?tab=plan&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page_size={{ page_size }}"
+     class="{% if tab == 'plan' %}active{% endif %}">
+    Portfolio Plan ({{ holdings|length }})
+  </a>
+  <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page_size={{ page_size }}"
+     class="{% if tab == 'assets' %}active{% endif %}">
+    All Eligible Assets ({{ pool_count }})
+  </a>
 </div>
 
-<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;">
-  <div class="card">
-    <div class="card-title">Capital Needed</div>
-    <div class="card-value" style="font-size:1.8rem;">{{ "€%.0f"|format(total_capital) }}</div>
+{% if tab == 'plan' %}
+  {% if holdings %}
+  <div class="card" style="margin-bottom:1.5rem;border-left:4px solid var(--accent-color);">
+    <div class="card-title" style="margin-bottom:0.5rem;">What to Look For</div>
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;font-size:0.85rem;color:var(--text-muted);">
+      <span><span class="badge badge-success">Aristocrat</span> 25+ years of consecutive dividend growth</span>
+      <span><span class="badge badge-success">Safe Payout</span> Payout ratio &le; 60% of earnings</span>
+      <span><span class="badge badge-success">High Yield</span> Trailing yield &ge; 5%</span>
+      <span><span class="badge badge-success">High Quality</span> Quality score &ge; 80/100</span>
+    </div>
   </div>
-  <div class="card">
-    <div class="card-title">Portfolio Yield</div>
-    <div class="card-value" style="font-size:1.8rem;color:var(--accent-color);">{{ "%.2f"|format(portfolio_yield) }}%</div>
-  </div>
-  <div class="card">
-    <div class="card-title">Monthly Income</div>
-    <div class="card-value" style="font-size:1.8rem;">{{ "€%.2f"|format(actual_monthly) }}</div>
-    <div class="card-subtext">Target: €{{ "%.0f"|format(target) }}/mo</div>
-  </div>
-  <div class="card">
-    <div class="card-title">Daily Income</div>
-    <div class="card-value" style="font-size:1.8rem;">{{ "€%.2f"|format(actual_daily) }}</div>
-    <div class="card-subtext">Avg per calendar day</div>
-  </div>
-  <div class="card">
-    <div class="card-title">Annual Income</div>
-    <div class="card-value" style="font-size:1.8rem;">{{ "€%.0f"|format(total_income) }}</div>
-  </div>
-</div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Ticker</th>
-      <th>Name</th>
-      <th>Type</th>
-      <th>Price</th>
-      <th>Div/Share</th>
-      <th>Yield</th>
-      <th title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">Quality <span class="info-tooltip">!</span></th>
-      <th>Shares</th>
-      <th>Capital</th>
-      <th>Annual Income</th>
-      <th>Monthly</th>
-      <th>Daily</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for h in holdings %}
-    <tr>
-      <td><strong><a href="/stocks/{{ h.ticker }}">{{ h.ticker }}</a></strong></td>
-      <td>
-        {{ h.name }}
-        {% if h.badges %}
-        <div style="margin-top:0.15rem;">
-          {% for b in h.badges %}<span class="badge badge-success" style="font-size:0.65rem;">{{ b }}</span>{% endfor %}
-        </div>
-        {% endif %}
-      </td>
-      <td>
-        {% if h.asset_type == 'ETF' %}
-          <span class="badge badge-warning">ETF</span>
-        {% else %}
-          <span class="badge badge-neutral">Stock</span>
-        {% endif %}
-      </td>
-      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.price) }}</td>
-      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.annual_dividend) }}</td>
-      <td><span class="badge badge-success">{{ "%.2f"|format(h['yield'] * 100) }}%</span></td>
-      <td>
-        <span class="badge {% if h.quality and h.quality >= 70 %}badge-success{% elif h.quality and h.quality >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">
-          {{ h.quality if h.quality is not none else 'N/A' }}
-        </span>
-      </td>
-      <td><strong>{{ h.shares }}</strong></td>
-      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.capital) }}</td>
-      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.income) }}</td>
-      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.monthly_income) }}</td>
-      <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.daily_income) }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-<div class="card" style="margin-top:1rem;">
-  <div class="card-subtext">
-    Suggested portfolio of {{ holdings|length }} diversified dividend-paying assets (max 2 per sector) selected from tracked stocks and ETFs with positive yield and quality score. Yields are trailing 12-month. Capital estimates use latest closing prices. This is not financial advice.
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;">
+    <div class="card">
+      <div class="card-title">Capital Needed</div>
+      <div class="card-value" style="font-size:1.8rem;">{{ "€%.0f"|format(total_capital) }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Portfolio Yield</div>
+      <div class="card-value" style="font-size:1.8rem;color:var(--accent-color);">{{ "%.2f"|format(portfolio_yield) }}%</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Monthly Income</div>
+      <div class="card-value" style="font-size:1.8rem;">{{ "€%.2f"|format(actual_monthly) }}</div>
+      <div class="card-subtext">Target: €{{ "%.0f"|format(target) }}/mo</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Daily Income</div>
+      <div class="card-value" style="font-size:1.8rem;">{{ "€%.2f"|format(actual_daily) }}</div>
+      <div class="card-subtext">Avg per calendar day</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Annual Income</div>
+      <div class="card-value" style="font-size:1.8rem;">{{ "€%.0f"|format(total_income) }}</div>
+    </div>
   </div>
-</div>
 
-<h2 style="margin-top:2rem;">All Eligible Assets ({{ pool_count }})</h2>
-<p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.5rem;">Standalone capital = investment needed to reach target using only this asset. Click ticker for details.</p>
-<div style="overflow-x:auto;">
-<table>
-  <thead>
-    <tr>
-      <th>Ticker</th>
-      <th>Name</th>
-      <th>Type</th>
-      <th>Price</th>
-      <th>Yield</th>
-      <th title="Quality Score (0-100)">Quality</th>
-      <th title="Payout ratio: dividends as % of earnings">Payout</th>
-      <th title="Consecutive years of dividend growth">Growth Yrs</th>
-      <th>Standalone Capital</th>
-      <th>Highlights</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for p in pool %}
-    <tr>
-      <td><strong><a href="/stocks/{{ p.ticker }}">{{ p.ticker }}</a></strong></td>
-      <td>{{ p.name }}</td>
-      <td>
-        {% if p.asset_type == 'ETF' %}
-          <span class="badge badge-warning">ETF</span>
-        {% else %}
-          <span class="badge badge-neutral">Stock</span>
-        {% endif %}
-      </td>
-      <td>{{ p.currency|currency_symbol }}{{ "%.2f"|format(p.price) }}</td>
-      <td><span class="badge badge-success">{{ "%.2f"|format(p['yield'] * 100) }}%</span></td>
-      <td>
-        <span class="badge {% if p.quality and p.quality >= 70 %}badge-success{% elif p.quality and p.quality >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
-          {{ p.quality if p.quality is not none else 'N/A' }}
-        </span>
-      </td>
-      <td>
-        {% if p.payout_ratio is not none %}
-          <span class="{% if p.payout_ratio <= 0.60 %}badge badge-success{% elif p.payout_ratio <= 1.0 %}badge badge-warning{% else %}badge badge-neutral{% endif %}">{{ "%.0f"|format(p.payout_ratio * 100) }}%</span>
-        {% else %}N/A{% endif %}
-      </td>
-      <td>{{ p.years_growing if p.years_growing is not none else 'N/A' }}</td>
-      <td>€{{ "%.0f"|format(p.standalone_capital) }}</td>
-      <td>
-        {% for b in p.badges %}<span class="badge badge-success" style="font-size:0.65rem;">{{ b }}</span>{% endfor %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
-{% else %}
-<div class="empty-state" style="padding:3rem;">
-  <p>No dividend-paying assets found matching your criteria. Try adjusting filters or sync more exchanges.</p>
-</div>
+  <div style="overflow-x:auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>Ticker</th>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Price</th>
+        <th>Div/Share</th>
+        <th>Yield</th>
+        <th title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">Quality <span class="info-tooltip">!</span></th>
+        <th>Shares</th>
+        <th>Capital</th>
+        <th>Annual Income</th>
+        <th>Monthly</th>
+        <th>Daily</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in holdings %}
+      <tr>
+        <td><strong><a href="/stocks/{{ h.ticker }}">{{ h.ticker }}</a></strong></td>
+        <td>
+          {{ h.name }}
+          {% if h.badges %}
+          <div style="margin-top:0.15rem;">
+            {% for b in h.badges %}<span class="badge badge-success" style="font-size:0.65rem;">{{ b }}</span>{% endfor %}
+          </div>
+          {% endif %}
+        </td>
+        <td>
+          {% if h.asset_type == 'ETF' %}
+            <span class="badge badge-warning">ETF</span>
+          {% else %}
+            <span class="badge badge-neutral">Stock</span>
+          {% endif %}
+        </td>
+        <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.price) }}</td>
+        <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.annual_dividend) }}</td>
+        <td><span class="badge badge-success">{{ "%.2f"|format(h['yield'] * 100) }}%</span></td>
+        <td>
+          <span class="badge {% if h.quality and h.quality >= 70 %}badge-success{% elif h.quality and h.quality >= 40 %}badge-warning{% else %}badge-neutral{% endif %}" title="Quality Score (0-100) measures dividend safety: payout ratio health, yield sustainability, and growth track record.">
+            {{ h.quality if h.quality is not none else 'N/A' }}
+          </span>
+        </td>
+        <td><strong>{{ h.shares }}</strong></td>
+        <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.capital) }}</td>
+        <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.income) }}</td>
+        <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.monthly_income) }}</td>
+        <td>{{ h.currency|currency_symbol }}{{ "%.2f"|format(h.daily_income) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-subtext">
+      Suggested portfolio of {{ holdings|length }} diversified dividend-paying assets (max 2 per sector) selected from tracked stocks and ETFs with positive yield and quality score. Yields are trailing 12-month. Capital estimates use latest closing prices. This is not financial advice.
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding:3rem;">
+    <p>No dividend-paying assets found matching your criteria. Try adjusting filters or sync more exchanges.</p>
+  </div>
+  {% endif %}
+
+{% elif tab == 'assets' %}
+  <!-- Tab 2: All Eligible Assets (Paginated) -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+    <div>
+      <h2 style="margin:0;font-size:1.25rem;">All Eligible Dividend Assets ({{ pool_count }})</h2>
+      <p style="color:var(--text-muted);font-size:0.85rem;margin:0.25rem 0 0 0;">
+        Standalone capital = total investment needed to hit €{{ "%.0f"|format(target) }}/mo using only this asset.
+      </p>
+    </div>
+    <form method="get" action="/planner" style="margin:0;display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--text-muted);">
+      <input type="hidden" name="tab" value="assets">
+      <input type="hidden" name="target" value="{{ target|int }}">
+      <input type="hidden" name="asset_type" value="{{ selected_asset_type }}">
+      <input type="hidden" name="currency" value="{{ selected_currency }}">
+      <input type="hidden" name="holdings" value="{{ num_holdings }}">
+      <label for="planner-page-size">Per Page:</label>
+      <select id="planner-page-size" name="page_size" onchange="this.form.submit()" style="padding:0.25rem 0.5rem;font-size:0.85rem;">
+        {% for sz in [15, 30, 50] %}
+        <option value="{{ sz }}" {% if page_size == sz %}selected{% endif %}>{{ sz }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+
+  {% if pool %}
+  <div style="overflow-x:auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>Ticker</th>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Price</th>
+        <th>Yield</th>
+        <th title="Quality Score (0-100)">Quality</th>
+        <th title="Payout ratio: dividends as % of earnings">Payout</th>
+        <th title="Consecutive years of dividend growth">Growth Yrs</th>
+        <th>Standalone Capital</th>
+        <th>Highlights</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pool %}
+      <tr>
+        <td><strong><a href="/stocks/{{ p.ticker }}">{{ p.ticker }}</a></strong></td>
+        <td>{{ p.name }}</td>
+        <td>
+          {% if p.asset_type == 'ETF' %}
+            <span class="badge badge-warning">ETF</span>
+          {% else %}
+            <span class="badge badge-neutral">Stock</span>
+          {% endif %}
+        </td>
+        <td>{{ p.currency|currency_symbol }}{{ "%.2f"|format(p.price) }}</td>
+        <td><span class="badge badge-success">{{ "%.2f"|format(p['yield'] * 100) }}%</span></td>
+        <td>
+          <span class="badge {% if p.quality and p.quality >= 70 %}badge-success{% elif p.quality and p.quality >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+            {{ p.quality if p.quality is not none else 'N/A' }}
+          </span>
+        </td>
+        <td>
+          {% if p.payout_ratio is not none %}
+            <span class="{% if p.payout_ratio <= 0.60 %}badge badge-success{% elif p.payout_ratio <= 1.0 %}badge badge-warning{% else %}badge badge-neutral{% endif %}">{{ "%.0f"|format(p.payout_ratio * 100) }}%</span>
+          {% else %}N/A{% endif %}
+        </td>
+        <td>{{ p.years_growing if p.years_growing is not none else 'N/A' }}</td>
+        <td>€{{ "%.0f"|format(p.standalone_capital) }}</td>
+        <td>
+          {% for b in p.badges %}<span class="badge badge-success" style="font-size:0.65rem;">{{ b }}</span>{% endfor %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Pagination Footer -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;font-size:0.85rem;color:var(--text-muted);margin-top:1rem;">
+    <div>Showing {{ pool_start }}&ndash;{{ pool_end }} of {{ pool_count }} assets</div>
+    <div style="display:flex;gap:0.25rem;align-items:center;">
+      {% if page > 1 %}
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page=1&page_size={{ page_size }}">
+          <button type="button" class="button-secondary" style="padding:0.25rem 0.5rem;font-size:0.8rem;">&laquo; First</button>
+        </a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ page - 1 }}&page_size={{ page_size }}">
+          <button type="button" class="button-secondary" style="padding:0.25rem 0.5rem;font-size:0.8rem;">&lsaquo; Prev</button>
+        </a>
+      {% endif %}
+      <span style="padding:0 0.5rem;">Page {{ page }} of {{ total_pages }}</span>
+      {% if page < total_pages %}
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ page + 1 }}&page_size={{ page_size }}">
+          <button type="button" class="button-secondary" style="padding:0.25rem 0.5rem;font-size:0.8rem;">Next &rsaquo;</button>
+        </a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ total_pages }}&page_size={{ page_size }}">
+          <button type="button" class="button-secondary" style="padding:0.25rem 0.5rem;font-size:0.8rem;">Last &raquo;</button>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding:3rem;">
+    <p>No eligible assets found matching your criteria. Try adjusting filters or sync more exchanges.</p>
+  </div>
+  {% endif %}
 {% endif %}
+
 {% endblock %}

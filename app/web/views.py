@@ -693,12 +693,16 @@ def planner_view(
     asset_type: Optional[str] = None,
     currency: Optional[str] = None,
     holdings: Optional[str] = "6",
+    tab: Optional[str] = "plan",
+    page: Optional[str] = "1",
+    page_size: Optional[str] = "15",
     db: Session = Depends(get_db),
 ):
     monthly_target = _safe_float(target, 100.0) or 100.0
     num_holdings = max(1, min(20, int(_safe_float(holdings, 6) or 6)))
     norm_asset = asset_type.strip().upper() if asset_type else None
     norm_currency = currency.strip().upper() if currency else None
+    active_tab = "assets" if tab and tab.strip().lower() == "assets" else "plan"
 
     # ponytail: subquery for latest close price per company; upgrade to materialized view if slow at scale
     latest_price_sq = (
@@ -804,11 +808,23 @@ def planner_view(
     actual_monthly = round(total_income / 12, 2)
     actual_daily = round(total_income / 365, 2)
 
+    # ponytail: in-memory pagination over candidate pool; upgrade to SQL offset/limit if pool > 10,000
+    page_num = max(1, int(_safe_float(page, 1) or 1))
+    size_num = max(1, min(100, int(_safe_float(page_size, 15) or 15)))
+    pool_count = len(pool)
+    pool_total_pages = max(1, (pool_count + size_num - 1) // size_num)
+    if page_num > pool_total_pages:
+        page_num = pool_total_pages
+    paged_pool = pool[(page_num - 1) * size_num : page_num * size_num]
+    pool_start = ((page_num - 1) * size_num + 1) if pool_count > 0 else 0
+    pool_end = min(page_num * size_num, pool_count)
+
     return templates.TemplateResponse(
         request=request,
         name="planner.html",
         context={
             "active_tab": "planner",
+            "tab": active_tab,
             "target": monthly_target,
             "annual_target": round(annual_target, 2),
             "holdings": holdings_result,
@@ -821,7 +837,12 @@ def planner_view(
             "selected_asset_type": asset_type or "",
             "selected_currency": currency or "",
             "currencies": ["EUR", "USD", "GBP"],
-            "pool": pool,
-            "pool_count": len(pool),
+            "pool": paged_pool,
+            "pool_count": pool_count,
+            "page": page_num,
+            "page_size": size_num,
+            "total_pages": pool_total_pages,
+            "pool_start": pool_start,
+            "pool_end": pool_end,
         },
     )
