@@ -114,8 +114,19 @@ class StockService:
 
         latest_dividend = self.dividend_repo.get_latest_event(company.id)
         latest_price = self.price_repo.get_latest_price(company.id)
-        dividends = self.dividend_repo.list_by_company(company.id, limit=20)
+        all_dividends = self.dividend_repo.list_by_company(company.id, limit=50)
         recent_prices = self.price_repo.get_history(company.id, limit=30)
+
+        # ponytail: partition dividends into confirmed past actuals vs upcoming/projected estimates
+        today = date.today()
+        historical_dividends = [
+            e for e in all_dividends
+            if e.status == "ACTUAL" and ((e.ex_date and e.ex_date <= today) or (not e.ex_date and e.pay_date and e.pay_date <= today))
+        ]
+        upcoming_dividends = [
+            e for e in all_dividends
+            if e.status != "ACTUAL" or (e.ex_date and e.ex_date > today) or (not e.ex_date and e.pay_date and e.pay_date > today)
+        ]
 
         return {
             "company": company,
@@ -125,8 +136,10 @@ class StockService:
             "financial_metric": company.financial_metric,
             "financial": company.financial_metric,
             "latest_dividend": latest_dividend,
-            "dividends": dividends,
-            "dividend_history": dividends,
+            "dividends": historical_dividends,
+            "dividend_history": historical_dividends,
+            "historical_dividends": historical_dividends,
+            "upcoming_dividends": upcoming_dividends,
             "latest_price": latest_price,
             "recent_prices": recent_prices,
             "prices": recent_prices,
@@ -275,10 +288,16 @@ class StockService:
         }
 
     def get_top_yields(self, limit: int = 20, exchange_code: Optional[str] = None) -> Sequence[tuple[Company, DividendMetric]]:
+        # ponytail: filter suspect stocks and implausible yields >50% from leaderboards
         stmt = (
             select(Company, DividendMetric)
             .join(DividendMetric, DividendMetric.company_id == Company.id)
-            .where(DividendMetric.current_yield.is_not(None), DividendMetric.current_yield > 0)
+            .where(
+                DividendMetric.current_yield.is_not(None),
+                DividendMetric.current_yield > 0,
+                DividendMetric.current_yield <= 0.50,
+                DividendMetric.is_suspect.is_(False),
+            )
         )
         if exchange_code:
             stmt = stmt.join(Exchange, Company.exchange_id == Exchange.id).where(Exchange.code == exchange_code.upper())
@@ -289,7 +308,11 @@ class StockService:
         stmt = (
             select(Company, DividendMetric)
             .join(DividendMetric, DividendMetric.company_id == Company.id)
-            .where(DividendMetric.growth_3y.is_not(None), DividendMetric.growth_3y > 0)
+            .where(
+                DividendMetric.growth_3y.is_not(None),
+                DividendMetric.growth_3y > 0,
+                DividendMetric.is_suspect.is_(False),
+            )
             .order_by(desc(DividendMetric.growth_3y))
             .limit(limit)
         )
@@ -299,7 +322,10 @@ class StockService:
         stmt = (
             select(Company, DividendMetric)
             .join(DividendMetric, DividendMetric.company_id == Company.id)
-            .where(DividendMetric.quality_score.is_not(None))
+            .where(
+                DividendMetric.quality_score.is_not(None),
+                DividendMetric.is_suspect.is_(False),
+            )
             .order_by(desc(DividendMetric.quality_score))
             .limit(limit)
         )

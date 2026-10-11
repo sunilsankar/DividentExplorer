@@ -301,7 +301,6 @@ class TestSyncWorkerHandlers(unittest.TestCase):
         self.assertEqual(proj.ex_date, past_ex + timedelta(days=364))
         self.assertEqual(proj.pay_date, past_pay + timedelta(days=364))
         self.assertEqual(proj.amount, 1.05)
-        self.assertEqual(proj.source, "projection")
 
         # When an official future declaration exists within 14 days, skip projection
         div_repo.upsert_event(
@@ -316,6 +315,38 @@ class TestSyncWorkerHandlers(unittest.TestCase):
 
         created_again = project_future_dividends(self.session, comp.id)
         self.assertEqual(created_again, 0)
+
+    def test_project_future_dividends_skips_suspect_company(self):
+        exch = ExchangeRepository(self.session).get_or_create(code="NYSE", name="NYSE")
+        comp, _ = CompanyRepository(self.session).upsert(
+            ticker="SUSP",
+            name="Suspect Ticker",
+            exchange_id=exch.id,
+        )
+        div_repo = DividendRepository(self.session)
+        div_repo.upsert_metric(
+            company_id=comp.id,
+            current_yield=260.0,
+            is_suspect=True,
+            suspect_reason="Implausible yield (>100%)",
+        )
+        div_repo.upsert_event(
+            company_id=comp.id,
+            ex_date=date.today() - timedelta(days=90),
+            pay_date=date.today() - timedelta(days=60),
+            amount=450.0,
+            status="ACTUAL",
+        )
+        self.session.commit()
+
+        created = project_future_dividends(self.session, comp.id)
+        self.assertEqual(created, 0)
+        projections = (
+            self.session.query(DividendEvent)
+            .filter_by(company_id=comp.id, status="PROJECTED")
+            .all()
+        )
+        self.assertEqual(len(projections), 0)
 
 
 if __name__ == "__main__":

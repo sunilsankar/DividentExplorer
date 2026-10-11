@@ -138,6 +138,41 @@ class TestAnalyticsCalculations(unittest.TestCase):
         self.assertIsNotNone(res.quality_score)
         self.assertLessEqual(res.quality_score, 85.0)
 
+    def test_reverse_split_anomaly_flags_suspect_and_suppresses_forward(self):
+        # GMEX scenario: split-adjusted historical dividend $453.60 on $1.74 share price
+        events = [
+            DividendEvent(ex_date=date(2025, 12, 30), amount=453.60, status="ACTUAL"),
+        ]
+        res = calculate_dividend_metrics(
+            events=events,
+            latest_price=1.74,
+            as_of=date(2026, 10, 10),
+        )
+        self.assertTrue(res.is_suspect)
+        self.assertIn("Implausible yield", res.suspect_reason)
+        # Original historical source value is preserved
+        self.assertEqual(res.annual_dividend, 453.60)
+        self.assertAlmostEqual(res.trailing_yield, 260.6897, places=2)
+        # Forward yield and quality score are suppressed
+        self.assertIsNone(res.forward_yield)
+        self.assertEqual(res.quality_score, 0.0)
+
+    def test_future_events_excluded_from_trailing_metrics(self):
+        # Past event + future estimate (e.g. 2026-12-29)
+        events = [
+            DividendEvent(ex_date=date(2025, 12, 30), amount=1.0, status="ACTUAL"),
+            DividendEvent(ex_date=date(2026, 12, 29), amount=50.0, status="ACTUAL"),
+        ]
+        res = calculate_dividend_metrics(
+            events=events,
+            latest_price=20.0,
+            as_of=date(2026, 10, 10),
+        )
+        # Future event must not be counted in t12m annual dividend
+        self.assertEqual(res.annual_dividend, 1.0)
+        self.assertAlmostEqual(res.trailing_yield, 0.05, places=2)
+        self.assertFalse(res.is_suspect)
+
 
 if __name__ == "__main__":
     unittest.main()

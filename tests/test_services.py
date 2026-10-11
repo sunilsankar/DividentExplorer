@@ -182,6 +182,23 @@ class ServicesTestCase(unittest.TestCase):
         self.assertIsNotNone(detail)
         self.assertEqual(detail["company"].ticker, "AD.AS")
 
+    def test_get_top_yields_filters_suspect_stocks(self):
+        from app.db.repositories import DividendRepository
+        ex = ExchangeRepository(self.session).upsert(code="NYSE", name="New York Stock Exchange")
+        c_repo = CompanyRepository(self.session)
+        c_good, _ = c_repo.upsert(ticker="GOOD", exchange_id=ex.id, name="Good Yield Corp")
+        c_susp, _ = c_repo.upsert(ticker="SUSP", exchange_id=ex.id, name="Suspect Split Corp")
+
+        d_repo = DividendRepository(self.session)
+        d_repo.upsert_metric(company_id=c_good.id, current_yield=0.06, is_suspect=False)
+        d_repo.upsert_metric(company_id=c_susp.id, current_yield=260.0, is_suspect=True)
+        self.session.commit()
+
+        top_yields = self.stock_service.get_top_yields(limit=10)
+        tickers = [comp.ticker for comp, _ in top_yields]
+        self.assertIn("GOOD", tickers)
+        self.assertNotIn("SUSP", tickers)
+
 
 if __name__ == "__main__":
     unittest.main()

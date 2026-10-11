@@ -38,6 +38,17 @@
   </div>
 </div>
 
+{% if metric and metric.is_suspect %}
+<div class="status-banner status-warn" style="margin-bottom: 1.5rem; border-left: 4px solid #f59e0b;">
+  <div>
+    <strong>⚠️ Data Validation Alert (Suspect Metric):</strong> {{ metric.suspect_reason }}
+    <div style="font-size: 0.85rem; margin-top: 0.35rem; color: var(--text-secondary);">
+      Raw historical dividend distributions are preserved as reported by the provider. However, forward dividend estimates and quality scores are withheld pending corporate action split reconciliation.
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if company.description %}
 <div class="card" style="margin-bottom: 1.5rem; font-size: 0.9rem; color: var(--text-secondary);">
   {{ company.description }}
@@ -120,9 +131,47 @@
   </div>
 </div>
 
+{% if upcoming_dividends %}
+<div class="section-header" style="margin-top: 1.5rem;">
+  <h2 class="section-title">Upcoming &amp; Projected Payments</h2>
+  <span style="font-size: 0.85rem; color: var(--text-muted);">{{ upcoming_dividends|length }} declared or modeled</span>
+</div>
+
+<table style="margin-bottom: 2rem;">
+  <thead>
+    <tr>
+      <th>Ex-Dividend Date</th>
+      <th>Cash Amount</th>
+      <th>Status</th>
+      <th>Record Date</th>
+      <th>Pay Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for div in upcoming_dividends %}
+    <tr>
+      <td><strong>{{ div.ex_date.strftime('%Y-%m-%d') if div.ex_date else '—' }}</strong></td>
+      <td><span>{{ (div.currency or company.currency)|currency_symbol }}{{ "%.4f"|format(div.amount) }}</span></td>
+      <td>
+        {% if div.status == 'EXPECTED' %}
+          <span class="badge badge-warning" style="font-size: 0.75rem;">Declared (Expected)</span>
+        {% elif div.status == 'PROJECTED' %}
+          <span class="badge" style="font-size: 0.75rem; border: 1px dashed var(--border-color); background: transparent;">Projected (52w Cycle)</span>
+        {% else %}
+          <span class="badge" style="font-size: 0.75rem;">{{ div.status }}</span>
+        {% endif %}
+      </td>
+      <td>{{ div.record_date.strftime('%Y-%m-%d') if div.record_date else '—' }}</td>
+      <td>{{ div.payment_date.strftime('%Y-%m-%d') if div.payment_date else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
 <div class="section-header">
   <h2 class="section-title">Dividend History</h2>
-  <span style="font-size: 0.85rem; color: var(--text-muted);">{{ dividends|length }} historical payments</span>
+  <span style="font-size: 0.85rem; color: var(--text-muted);">{{ dividends|length }} confirmed payments</span>
 </div>
 
 {% if dividends %}
@@ -136,6 +185,7 @@
     <tr>
       <th>Ex-Dividend Date</th>
       <th>Cash Amount</th>
+      <th>Status</th>
       <th>Record Date</th>
       <th>Pay Date</th>
       <th>Declaration Date</th>
@@ -146,13 +196,14 @@
     <tr>
       <td><strong>{{ div.ex_date.strftime('%Y-%m-%d') }}</strong></td>
       <td><span class="badge badge-success">{{ (div.currency or company.currency)|currency_symbol }}{{ "%.4f"|format(div.amount) }}</span></td>
+      <td><span class="badge" style="font-size: 0.75rem;">ACTUAL</span></td>
       <td>{{ div.record_date.strftime('%Y-%m-%d') if div.record_date else '—' }}</td>
       <td>{{ div.payment_date.strftime('%Y-%m-%d') if div.payment_date else '—' }}</td>
       <td>{{ div.declaration_date.strftime('%Y-%m-%d') if div.declaration_date else '—' }}</td>
     </tr>
     {% else %}
     <tr>
-      <td colspan="5" style="text-align: center; color: var(--text-muted);">No dividend history recorded.</td>
+      <td colspan="6" style="text-align: center; color: var(--text-muted);">No dividend history recorded.</td>
     </tr>
     {% endfor %}
   </tbody>

@@ -140,6 +140,8 @@ class DividendMetric(Base):
     years_paying: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     years_growing: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     quality_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    is_suspect: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    suspect_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     calculated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     company: Mapped["Company"] = relationship("Company", back_populates="dividend_metric")

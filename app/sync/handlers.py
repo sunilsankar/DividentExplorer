@@ -125,6 +125,8 @@ def update_analytics_for_company(session: Session, company_id: int) -> Optional[
         years_paying=computed.years_paying,
         years_growing=computed.years_growing,
         quality_score=computed.quality_score,
+        is_suspect=computed.is_suspect,
+        suspect_reason=computed.suspect_reason,
     )
     return saved_metric
 
@@ -279,7 +281,7 @@ def project_future_dividends(session: Session, company_id: int) -> int:
 
     ponytail: adds 364 days (52 weeks) to past actual events to preserve weekday; upgrade to frequency-aware model if erratic schedules emerge
     """
-    from app.db.models import DividendEvent
+    from app.db.models import DividendEvent, DividendMetric
 
     today = date.today()
     session.execute(
@@ -289,6 +291,13 @@ def project_future_dividends(session: Session, company_id: int) -> int:
             DividendEvent.ex_date >= today,
         )
     )
+
+    # ponytail: do not project future dividends for suspect companies (reverse-splits/anomalies)
+    metric = session.execute(
+        select(DividendMetric).where(DividendMetric.company_id == company_id)
+    ).scalars().first()
+    if metric and metric.is_suspect:
+        return 0
     one_year_ago = today - timedelta(days=365)
     recent = session.execute(
         select(DividendEvent).where(

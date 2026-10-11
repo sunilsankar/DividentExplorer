@@ -22,6 +22,8 @@ class ComputedDividendMetrics:
     years_paying: Optional[int]
     years_growing: Optional[int]
     quality_score: Optional[float]
+    is_suspect: bool = False
+    suspect_reason: Optional[str] = None
 
 
 def _safe_div(numerator: Optional[float], denominator: Optional[float]) -> Optional[float]:
@@ -48,10 +50,15 @@ def calculate_dividend_metrics(
     """
     today = as_of or date.today()
 
-    # Filter valid actual events with a date and positive amount
+    # Filter valid actual events with a date and positive amount on or before today
+    # ponytail: strictly exclude future dates and non-ACTUAL events from trailing historical calculations
     valid_events = [
         e for e in events
-        if (e.ex_date or e.pay_date) and e.amount is not None and e.amount > 0 and e.status == "ACTUAL"
+        if (e.ex_date or e.pay_date)
+        and e.amount is not None
+        and e.amount > 0
+        and e.status == "ACTUAL"
+        and ((e.ex_date and e.ex_date <= today) or (not e.ex_date and e.pay_date and e.pay_date <= today))
     ]
 
     if not valid_events:
@@ -119,11 +126,28 @@ def calculate_dividend_metrics(
     else:
         freq_mult = 4.0  # default quarterly
 
-    # Forward yield: latest payment multiplied by frequency or annual
-    sorted_events = sorted(valid_events, key=lambda x: (x.ex_date or x.pay_date or date.min), reverse=True)
-    latest_event = sorted_events[0] if sorted_events else None
-    forward_dividend = (latest_event.amount * freq_mult) if (latest_event and latest_event.amount) else annual_dividend
-    forward_yield = _safe_div(forward_dividend, latest_price) if latest_price and latest_price > 0 else None
+    # Anomaly and reverse-split validation (rules 8, 9, 10, 11, 12)
+    # ponytail: flag yields >50% or >100% as suspect reverse-split/penny-stock anomalies; upgrade to explicit corporate action feed if available
+    is_suspect = False
+    suspect_reason: Optional[str] = None
+
+    if trailing_yield is not None:
+        if trailing_yield > 1.0:
+            is_suspect = True
+            suspect_reason = f"Implausible yield ({trailing_yield * 100:.1f}%): Annual dividend exceeds current share price (likely reverse split or penny-stock anomaly)"
+        elif trailing_yield > 0.50:
+            is_suspect = True
+            suspect_reason = f"High anomaly yield ({trailing_yield * 100:.1f}%): Suspect reverse split or distressed distribution"
+
+    # Forward yield: only supported forward dividend estimates; if suspect, do not assume recurrence
+    if is_suspect:
+        forward_dividend = None
+        forward_yield = None
+    else:
+        sorted_events = sorted(valid_events, key=lambda x: (x.ex_date or x.pay_date or date.min), reverse=True)
+        latest_event = sorted_events[0] if sorted_events else None
+        forward_dividend = (latest_event.amount * freq_mult) if (latest_event and latest_event.amount) else annual_dividend
+        forward_yield = _safe_div(forward_dividend, latest_price) if latest_price and latest_price > 0 else None
 
     # Years paying (consecutive years with dividends ending at last completed year)
     years_paying = 0
@@ -193,13 +217,14 @@ def calculate_dividend_metrics(
             score += 10
 
     # Pillar 3: Yield Health (max 25)
-    if current_yield is not None:
+    if current_yield is not None and not is_suspect:
         if 0.02 <= current_yield <= 0.06:
             score += 25
         elif 0.015 <= current_yield <= 0.08:
             score += 18
-        elif current_yield > 0:
+        elif current_yield <= 0.15:
             score += 10
+        # Yields > 15% earn 0 yield health points
 
     # Pillar 4: Financial Health / Payout Safety (max 25)
     has_financial_data = False
@@ -232,7 +257,10 @@ def calculate_dividend_metrics(
     if not has_all_data:
         score = min(score, 85.0)
 
-    quality_score = round(min(100.0, max(0.0, score)), 1)
+    if is_suspect:
+        quality_score = 0.0
+    else:
+        quality_score = round(min(100.0, max(0.0, score)), 1)
 
     return ComputedDividendMetrics(
         current_yield=current_yield,
@@ -248,4 +276,6 @@ def calculate_dividend_metrics(
         years_paying=years_paying,
         years_growing=years_growing,
         quality_score=quality_score,
+        is_suspect=is_suspect,
+        suspect_reason=suspect_reason,
     )
