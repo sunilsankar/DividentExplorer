@@ -631,6 +631,8 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("All Eligible Dividend Assets", resp_assets.text)
         self.assertIn("Showing", resp_assets.text)
         self.assertIn("Standalone Capital", resp_assets.text)
+        # Verify valid clickable pagination anchor without nested button
+        self.assertNotIn("<button", resp_assets.text.split("<!-- Pagination Footer -->")[-1] if "<!-- Pagination Footer -->" in resp_assets.text else "")
 
 
 if __name__ == "__main__":

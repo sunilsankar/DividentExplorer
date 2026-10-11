@@ -246,21 +246,13 @@
     <div>Showing {{ pool_start }}&ndash;{{ pool_end }} of {{ pool_count }} assets</div>
     <div style="display:flex;gap:0.25rem;align-items:center;">
       {% if page > 1 %}
-        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page=1&page_size={{ page_size }}">
-          <button type="button" class="button-secondary" style="padding:0.25rem 0.5rem;font-size:0.8rem;">&laquo; First</button>
-        </a>
-        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ page - 1 }}&page_size={{ page_size }}">
-          <button type="button" class="button-secondary" style="padding:0.25rem 0.5rem;font-size:0.8rem;">&lsaquo; Prev</button>
-        </a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page=1&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">&laquo; First</a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ page - 1 }}&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">&lsaquo; Prev</a>
       {% endif %}
       <span style="padding:0 0.5rem;">Page {{ page }} of {{ total_pages }}</span>
       {% if page < total_pages %}
-        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ page + 1 }}&page_size={{ page_size }}">
-          <button type="button" class="button-secondary" style="padding:0.25rem 0.5rem;font-size:0.8rem;">Next &rsaquo;</button>
-        </a>
-        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ total_pages }}&page_size={{ page_size }}">
-          <button type="button" class="button-secondary" style="padding:0.25rem 0.5rem;font-size:0.8rem;">Last &raquo;</button>
-        </a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ page + 1 }}&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">Next &rsaquo;</a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ total_pages }}&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">Last &raquo;</a>
       {% endif %}
     </div>
   </div>
