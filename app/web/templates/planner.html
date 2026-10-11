@@ -49,6 +49,16 @@
 </div>
 
 {% if holdings %}
+<div class="card" style="margin-bottom:1.5rem;border-left:4px solid var(--accent-color);">
+  <div class="card-title" style="margin-bottom:0.5rem;">What to Look For</div>
+  <div style="display:flex;gap:1.5rem;flex-wrap:wrap;font-size:0.85rem;color:var(--text-muted);">
+    <span><span class="badge badge-success">Aristocrat</span> 25+ years of consecutive dividend growth</span>
+    <span><span class="badge badge-success">Safe Payout</span> Payout ratio &le; 60% of earnings</span>
+    <span><span class="badge badge-success">High Yield</span> Trailing yield &ge; 5%</span>
+    <span><span class="badge badge-success">High Quality</span> Quality score &ge; 80/100</span>
+  </div>
+</div>
+
 <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;">
   <div class="card">
     <div class="card-title">Capital Needed</div>
@@ -95,7 +105,14 @@
     {% for h in holdings %}
     <tr>
       <td><strong><a href="/stocks/{{ h.ticker }}">{{ h.ticker }}</a></strong></td>
-      <td>{{ h.name }}</td>
+      <td>
+        {{ h.name }}
+        {% if h.badges %}
+        <div style="margin-top:0.15rem;">
+          {% for b in h.badges %}<span class="badge badge-success" style="font-size:0.65rem;">{{ b }}</span>{% endfor %}
+        </div>
+        {% endif %}
+      </td>
       <td>
         {% if h.asset_type == 'ETF' %}
           <span class="badge badge-warning">ETF</span>
@@ -125,6 +142,59 @@
   <div class="card-subtext">
     Suggested portfolio of {{ holdings|length }} diversified dividend-paying assets (max 2 per sector) selected from tracked stocks and ETFs with positive yield and quality score. Yields are trailing 12-month. Capital estimates use latest closing prices. This is not financial advice.
   </div>
+</div>
+
+<h2 style="margin-top:2rem;">All Eligible Assets ({{ pool_count }})</h2>
+<p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.5rem;">Standalone capital = investment needed to reach target using only this asset. Click ticker for details.</p>
+<div style="overflow-x:auto;">
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Price</th>
+      <th>Yield</th>
+      <th title="Quality Score (0-100)">Quality</th>
+      <th title="Payout ratio: dividends as % of earnings">Payout</th>
+      <th title="Consecutive years of dividend growth">Growth Yrs</th>
+      <th>Standalone Capital</th>
+      <th>Highlights</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in pool %}
+    <tr>
+      <td><strong><a href="/stocks/{{ p.ticker }}">{{ p.ticker }}</a></strong></td>
+      <td>{{ p.name }}</td>
+      <td>
+        {% if p.asset_type == 'ETF' %}
+          <span class="badge badge-warning">ETF</span>
+        {% else %}
+          <span class="badge badge-neutral">Stock</span>
+        {% endif %}
+      </td>
+      <td>{{ p.currency|currency_symbol }}{{ "%.2f"|format(p.price) }}</td>
+      <td><span class="badge badge-success">{{ "%.2f"|format(p['yield'] * 100) }}%</span></td>
+      <td>
+        <span class="badge {% if p.quality and p.quality >= 70 %}badge-success{% elif p.quality and p.quality >= 40 %}badge-warning{% else %}badge-neutral{% endif %}">
+          {{ p.quality if p.quality is not none else 'N/A' }}
+        </span>
+      </td>
+      <td>
+        {% if p.payout_ratio is not none %}
+          <span class="{% if p.payout_ratio <= 0.60 %}badge badge-success{% elif p.payout_ratio <= 1.0 %}badge badge-warning{% else %}badge badge-neutral{% endif %}">{{ "%.0f"|format(p.payout_ratio * 100) }}%</span>
+        {% else %}N/A{% endif %}
+      </td>
+      <td>{{ p.years_growing if p.years_growing is not none else 'N/A' }}</td>
+      <td>€{{ "%.0f"|format(p.standalone_capital) }}</td>
+      <td>
+        {% for b in p.badges %}<span class="badge badge-success" style="font-size:0.65rem;">{{ b }}</span>{% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 </div>
 {% else %}
 <div class="empty-state" style="padding:3rem;">

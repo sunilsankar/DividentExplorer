@@ -731,29 +731,55 @@ def planner_view(
 
     candidates = db.execute(stmt).all()
 
-    # ponytail: greedy sector diversification (max 2 per sector); upgrade to LP solver if precision needed
-    selected: list[dict] = []
-    sector_count: dict[str, int] = {}
+    # Build full candidate pool with badges and standalone capital
+    annual_target = monthly_target * 12
+    pool: list[dict] = []
     for comp, metric, price in candidates:
-        if len(selected) >= num_holdings:
-            break
-        sector = comp.sector or "Unknown"
-        if sector_count.get(sector, 0) >= 2:
-            continue
-        sector_count[sector] = sector_count.get(sector, 0) + 1
-        selected.append({
+        yld = metric.current_yield
+        qual = metric.dividend_quality_score
+        pay = metric.payout_ratio
+        yrs_g = metric.years_growing
+        pr = round(float(price), 2)
+        badges: list[str] = []
+        if yrs_g and yrs_g >= 25:
+            badges.append("Aristocrat")
+        elif yrs_g and yrs_g >= 10:
+            badges.append("Growth")
+        if pay is not None and pay <= 0.60:
+            badges.append("Safe Payout")
+        if yld >= 0.05:
+            badges.append("High Yield")
+        if qual and qual >= 80:
+            badges.append("High Quality")
+        # Standalone capital: how much to hit target with only this asset
+        standalone_capital = round(annual_target / (yld * pr), 0) if yld > 0 and pr > 0 else 0
+        pool.append({
             "ticker": comp.ticker,
             "name": comp.name,
             "asset_type": comp.asset_type,
             "currency": comp.currency,
-            "sector": sector,
-            "yield": metric.current_yield,
+            "sector": comp.sector or "Unknown",
+            "yield": yld,
             "annual_dividend": metric.annual_dividend,
-            "quality": metric.dividend_quality_score,
-            "price": round(float(price), 2),
+            "quality": qual,
+            "payout_ratio": pay,
+            "years_growing": yrs_g,
+            "price": pr,
+            "badges": badges,
+            "standalone_capital": standalone_capital,
         })
 
-    annual_target = monthly_target * 12
+    # ponytail: greedy sector diversification (max 2 per sector); upgrade to LP solver if precision needed
+    selected: list[dict] = []
+    sector_count: dict[str, int] = {}
+    for h in pool:
+        if len(selected) >= num_holdings:
+            break
+        if sector_count.get(h["sector"], 0) >= 2:
+            continue
+        sector_count[h["sector"]] = sector_count.get(h["sector"], 0) + 1
+        selected.append(h)
+
     per_asset_income = annual_target / max(len(selected), 1)
 
     holdings_result: list[dict] = []
@@ -795,5 +821,7 @@ def planner_view(
             "selected_asset_type": asset_type or "",
             "selected_currency": currency or "",
             "currencies": ["EUR", "USD", "GBP"],
+            "pool": pool,
+            "pool_count": len(pool),
         },
     )

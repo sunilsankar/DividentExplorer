@@ -612,6 +612,9 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn("Capital Needed", resp.text)
         self.assertIn("Portfolio Yield", resp.text)
         self.assertIn("Daily Income", resp.text)
+        self.assertIn("What to Look For", resp.text)
+        self.assertIn("All Eligible Assets", resp.text)
+        self.assertIn("Standalone Capital", resp.text)
 
         # ETF only filter
         resp_etf = self.client.get("/planner?asset_type=ETF")
