@@ -40,7 +40,9 @@ class WebViewsTestCase(unittest.TestCase):
         nyse = Exchange(code="NYSE", name="New York Stock Exchange", country="USA", currency="USD")
         nasdaq = Exchange(code="NASDAQ", name="NASDAQ Stock Market", country="USA", currency="USD")
         ams = Exchange(code="AMS", name="Euronext Amsterdam", country="Netherlands", currency="EUR")
-        self.session.add_all([nyse, nasdaq, ams])
+        nse = Exchange(code="NSE", name="National Stock Exchange of India", country="India", currency="INR")
+        bse = Exchange(code="BSE", name="Bombay Stock Exchange", country="India", currency="INR")
+        self.session.add_all([nyse, nasdaq, ams, nse, bse])
         self.session.flush()
 
         jnj = Company(
@@ -107,7 +109,31 @@ class WebViewsTestCase(unittest.TestCase):
             pay_date=date(2024, 3, 5),
             amount=1.24,
         )
-        self.session.add(event)
+        event_pfe = DividendEvent(
+            company_id=pfe.id,
+            ex_date=date(2024, 2, 22),
+            pay_date=date(2024, 3, 12),
+            amount=0.42,
+        )
+        itc = Company(
+            ticker="ITC.NS",
+            exchange_id=nse.id,
+            name="ITC Limited",
+            sector="Consumer Defensive",
+            industry="Tobacco",
+            currency="INR",
+            is_active=True,
+        )
+        self.session.add(itc)
+        self.session.flush()
+        event_itc = DividendEvent(
+            company_id=itc.id,
+            ex_date=date(2024, 2, 14),
+            pay_date=date(2024, 3, 5),
+            amount=12.5,
+            currency="INR",
+        )
+        self.session.add_all([event, event_pfe, event_itc])
 
         price = PriceHistory(
             company_id=jnj.id,
@@ -335,13 +361,13 @@ class WebViewsTestCase(unittest.TestCase):
         # Ensure empty string form parameters (like max_price="") do not cause HTTP 422 on pagination
         resp_empty_params = self.client.get("/stocks/table?page=2&page_size=1&max_price=&q=&sector=&asset_type=")
         self.assertEqual(resp_empty_params.status_code, 200)
-        self.assertIn("Page 2 of 4", resp_empty_params.text)
+        self.assertIn("Page 2 of 5", resp_empty_params.text)
 
-        resp_p4 = self.client.get("/stocks/table?page=4&page_size=1")
-        self.assertEqual(resp_p4.status_code, 200)
-        self.assertIn("&laquo; First", resp_p4.text)
-        self.assertIn("&lsaquo; Prev", resp_p4.text)
-        self.assertNotIn("Next &rsaquo;", resp_p4.text)
+        resp_p5 = self.client.get("/stocks/table?page=5&page_size=1")
+        self.assertEqual(resp_p5.status_code, 200)
+        self.assertIn("&laquo; First", resp_p5.text)
+        self.assertIn("&lsaquo; Prev", resp_p5.text)
+        self.assertNotIn("Next &rsaquo;", resp_p5.text)
 
     def test_stock_detail_view(self):
         resp = self.client.get("/stocks/JNJ")
@@ -407,6 +433,18 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertEqual(resp_exch_empty.status_code, 200)
         self.assertNotIn("JNJ", resp_exch_empty.text)
 
+        # Month filtering
+        resp_feb = self.client.get("/calendar?year=2024&month=2")
+        self.assertEqual(resp_feb.status_code, 200)
+        self.assertIn("JNJ", resp_feb.text)
+        self.assertIn("PFE", resp_feb.text)
+
+        resp_may = self.client.get("/calendar?year=2024&month=5")
+        self.assertEqual(resp_may.status_code, 200)
+        self.assertNotIn("JNJ", resp_may.text)
+        self.assertNotIn("PFE", resp_may.text)
+        self.assertIn("No dividend events recorded", resp_may.text)
+
         # HTMX partial response
         resp_htmx = self.client.get(
             "/calendar?view=table",
@@ -414,6 +452,39 @@ class WebViewsTestCase(unittest.TestCase):
         )
         self.assertEqual(resp_htmx.status_code, 200)
         self.assertIn("Scheduled Events", resp_htmx.text)
+
+    def test_calendar_market_isolation(self):
+        # Default = global: includes US tickers, excludes Indian ones
+        resp_global = self.client.get("/calendar?year=2024&month=2")
+        self.assertEqual(resp_global.status_code, 200)
+        self.assertIn("JNJ", resp_global.text)
+        self.assertIn("PFE", resp_global.text)
+        self.assertNotIn("ITC.NS", resp_global.text)
+        self.assertIn("Global / Rest", resp_global.text)
+        self.assertNotIn("ITC", self._currency_options(resp_global.text))
+
+        # market=india: includes ITC, excludes US tickers
+        resp_in = self.client.get("/calendar?market=india&year=2024&month=2")
+        self.assertEqual(resp_in.status_code, 200)
+        self.assertIn("ITC.NS", resp_in.text)
+        self.assertNotIn("JNJ", resp_in.text)
+        self.assertNotIn("PFE", resp_in.text)
+        self.assertIn("&#8377;", resp_in.text)
+        self.assertIn("INR", self._currency_options(resp_in.text))
+        self.assertNotIn("USD", self._currency_options(resp_in.text))
+        self.assertIn("NSE", resp_in.text)
+        self.assertNotIn("NYSE", resp_in.text)
+
+        # /calendar/india alias
+        resp_alias = self.client.get("/calendar/india?year=2024&month=2")
+        self.assertEqual(resp_alias.status_code, 200)
+        self.assertIn("ITC.NS", resp_alias.text)
+        self.assertNotIn("JNJ", resp_alias.text)
+
+    def _currency_options(self, html: str) -> str:
+        import re
+        m = re.search(r'<select name="currency".*?</select>', html, re.S)
+        return m.group(0) if m else ""
 
     def test_analytics_view(self):
         resp = self.client.get("/analytics")

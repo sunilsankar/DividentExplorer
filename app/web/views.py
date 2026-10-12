@@ -417,6 +417,7 @@ def competitors_view(
 
 
 @router.get("/calendar", response_class=HTMLResponse)
+@router.get("/calendar/india", response_class=HTMLResponse)
 def calendar_view(
     request: Request,
     year: Optional[int] = None,
@@ -425,20 +426,62 @@ def calendar_view(
     currency: Optional[str] = None,
     exchange: Optional[str] = None,
     view: Optional[str] = "calendar",
+    market: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
+    # ponytail: market toggle hardcodes india/global scope. Add markets when needed.
+    selected_market = (market or "").strip().lower()
+    if selected_market not in ("india", "global"):
+        selected_market = "india" if request.url.path.endswith("/calendar/india") else "global"
+
     stock_service = StockService(db)
-    available_currencies = stock_service.list_currencies()
-    exchanges = stock_service.list_exchanges()
+    available_currencies = stock_service.list_currencies(market=selected_market)
+    exchanges = stock_service.list_exchanges(market=selected_market)
     normalized_asset_type = asset_type.strip().upper() if asset_type else None
     normalized_currency = currency.strip().upper() if currency else None
     normalized_exchange = exchange.strip().upper() if exchange else None
 
+    today = date.today()
+    if year is None or month is None:
+        cur_year, cur_month = today.year, today.month
+        days_in_cur_month = pycalendar.monthrange(cur_year, cur_month)[1]
+        has_current = stock_service.get_dividend_calendar(
+            asset_type=normalized_asset_type,
+            currency=normalized_currency,
+            exchange=normalized_exchange,
+            market=selected_market,
+            start_date=date(cur_year, cur_month, 1),
+            end_date=date(cur_year, cur_month, days_in_cur_month),
+            limit=1,
+        )
+        if not has_current:
+            latest = stock_service.get_dividend_calendar(
+                asset_type=normalized_asset_type,
+                currency=normalized_currency,
+                exchange=normalized_exchange,
+                market=selected_market,
+                limit=1,
+            )
+            if latest and latest[0][0].ex_date:
+                cur_year, cur_month = latest[0][0].ex_date.year, latest[0][0].ex_date.month
+    else:
+        cur_year, cur_month = int(year), max(1, min(12, int(month)))
+
+    prev_year, prev_month = (cur_year - 1, 12) if cur_month == 1 else (cur_year, cur_month - 1)
+    next_year, next_month = (cur_year + 1, 1) if cur_month == 12 else (cur_year, cur_month + 1)
+
+    cal_matrix = pycalendar.monthcalendar(cur_year, cur_month)
+    month_name = pycalendar.month_name[cur_month]
+
+    days_in_month = pycalendar.monthrange(cur_year, cur_month)[1]
     raw_events = stock_service.get_dividend_calendar(
         asset_type=normalized_asset_type,
         currency=normalized_currency,
         exchange=normalized_exchange,
-        limit=200,
+        market=selected_market,
+        start_date=date(cur_year, cur_month, 1),
+        end_date=date(cur_year, cur_month, days_in_month),
+        limit=500,
     )
     events = [
         {
@@ -453,23 +496,8 @@ def calendar_view(
             "status": ev.status,
         }
         for ev, comp in raw_events
+        if ev.ex_date is not None
     ]
-
-    today = date.today()
-    if year is None or month is None:
-        if events and not any(e["ex_date"].year == today.year and e["ex_date"].month == today.month for e in events):
-            target_date = events[0]["ex_date"]
-            cur_year, cur_month = target_date.year, target_date.month
-        else:
-            cur_year, cur_month = today.year, today.month
-    else:
-        cur_year, cur_month = int(year), int(month)
-
-    prev_year, prev_month = (cur_year - 1, 12) if cur_month == 1 else (cur_year, cur_month - 1)
-    next_year, next_month = (cur_year + 1, 1) if cur_month == 12 else (cur_year, cur_month + 1)
-
-    cal_matrix = pycalendar.monthcalendar(cur_year, cur_month)
-    month_name = pycalendar.month_name[cur_month]
 
     events_by_day: dict[int, list[dict]] = {}
     for ev in events:
@@ -495,6 +523,7 @@ def calendar_view(
         "available_currencies": available_currencies,
         "exchanges": exchanges,
         "current_view": view or "calendar",
+        "selected_market": selected_market,
         "today_day": today.day if today.year == cur_year and today.month == cur_month else None,
     }
 

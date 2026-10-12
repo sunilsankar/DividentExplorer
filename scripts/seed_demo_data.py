@@ -17,6 +17,7 @@ from app.db.repositories import (
     PriceRepository,
 )
 from app.db.session import SessionLocal, init_db
+from app.sync.handlers import project_future_dividends
 
 DEMO_STOCKS = [
     {
@@ -138,7 +139,7 @@ def seed() -> None:
         created_companies = []
 
         # 2. Companies & Data
-        for item in DEMO_STOCKS:
+        for comp_idx, item in enumerate(DEMO_STOCKS):
             exchange = ex_map[item["exchange_code"]]
             company, _ = comp_repo.upsert(
                 ticker=item["ticker"],
@@ -155,9 +156,10 @@ def seed() -> None:
             # Dividends: 8 quarterly events back in time
             events = []
             base_div = item["base_dividend"]
+            day_shift = (comp_idx * 3) % 25
             for i in range(8):
-                # quarterly: ~91 days apart
-                event_date = today - timedelta(days=91 * i + 15)
+                # quarterly: ~91 days apart, staggered across companies
+                event_date = today - timedelta(days=91 * i + 10 + day_shift)
                 # simulate slight annual growth
                 payout = round(base_div * (0.95 ** (i // 4)), 4)
                 ev, _ = div_repo.upsert_event(
@@ -216,6 +218,7 @@ def seed() -> None:
                 company_id=company.id,
                 **asdict(calc),
             )
+            project_future_dividends(session, company.id)
 
         # 3. Add explicit competitor relationships
         # KO <-> PEP

@@ -1,13 +1,29 @@
 <div id="calendar-filters" class="calendar-controls">
+  <div class="market-tabs" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem;">
+    <span style="font-size: 0.85rem; color: var(--text-muted); margin-right: 0.25rem;">Market:</span>
+    <a href="/calendar?market=global&year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+       hx-get="/calendar?market=global&year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+       hx-target="#calendar-container"
+       hx-swap="innerHTML"
+       class="{% if selected_market == 'global' %}button-primary{% else %}button-secondary{% endif %}"
+       style="padding: 0.35rem 0.75rem; font-size: 0.85rem; text-decoration: none;">&#127760; Global / Rest ($)</a>
+    <a href="/calendar?market=india&year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+       hx-get="/calendar?market=india&year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+       hx-target="#calendar-container"
+       hx-swap="innerHTML"
+       class="{% if selected_market == 'india' %}button-primary{% else %}button-secondary{% endif %}"
+       style="padding: 0.35rem 0.75rem; font-size: 0.85rem; text-decoration: none;">&#127470;&#127475; India (&#8377;)</a>
+  </div>
+
   <div class="calendar-nav">
-    <a href="/calendar?year={{ prev_year }}&month={{ prev_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
-       hx-get="/calendar?year={{ prev_year }}&month={{ prev_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+    <a href="/calendar?market={{ selected_market }}&year={{ prev_year }}&month={{ prev_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+       hx-get="/calendar?market={{ selected_market }}&year={{ prev_year }}&month={{ prev_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
        hx-target="#calendar-container"
        class="button-secondary"
        style="padding: 0.35rem 0.75rem;">&larr; Prev</a>
     <h2 style="margin: 0; font-size: 1.25rem;">{{ month_name }} {{ year }}</h2>
-    <a href="/calendar?year={{ next_year }}&month={{ next_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
-       hx-get="/calendar?year={{ next_year }}&month={{ next_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+    <a href="/calendar?market={{ selected_market }}&year={{ next_year }}&month={{ next_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
+       hx-get="/calendar?market={{ selected_market }}&year={{ next_year }}&month={{ next_month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view={{ current_view }}"
        hx-target="#calendar-container"
        class="button-secondary"
        style="padding: 0.35rem 0.75rem;">Next &rarr;</a>
@@ -17,6 +33,7 @@
     <input type="hidden" name="year" value="{{ year }}">
     <input type="hidden" name="month" value="{{ month }}">
     <input type="hidden" name="view" value="{{ current_view }}">
+    <input type="hidden" name="market" value="{{ selected_market }}">
 
     <!-- Asset Type Filter -->
     <select name="asset_type"
@@ -55,13 +72,13 @@
 
     <!-- View Toggle -->
     <div style="display: flex; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;">
-      <a href="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=calendar"
-         hx-get="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=calendar"
+      <a href="/calendar?market={{ selected_market }}&year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=calendar"
+         hx-get="/calendar?market={{ selected_market }}&year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=calendar"
          hx-target="#calendar-container"
          class="{% if current_view == 'calendar' %}button-primary{% else %}button-secondary{% endif %}"
          style="padding: 0.35rem 0.65rem; border-radius: 0; font-size: 0.8rem; text-decoration: none;">Grid</a>
-      <a href="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=table"
-         hx-get="/calendar?year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=table"
+      <a href="/calendar?market={{ selected_market }}&year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=table"
+         hx-get="/calendar?market={{ selected_market }}&year={{ year }}&month={{ month }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&exchange={{ selected_exchange }}&view=table"
          hx-target="#calendar-container"
          class="{% if current_view == 'table' %}button-primary{% else %}button-secondary{% endif %}"
          style="padding: 0.35rem 0.65rem; border-radius: 0; font-size: 0.8rem; text-decoration: none;">Table</a>

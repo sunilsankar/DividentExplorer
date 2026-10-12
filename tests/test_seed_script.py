@@ -33,8 +33,15 @@ class SeedScriptTestCase(unittest.TestCase):
                 self.assertIsNotNone(comp.sector)
                 self.assertIsNotNone(comp.industry)
 
-                events = session.query(DividendEvent).filter_by(company_id=comp.id).all()
-                self.assertEqual(len(events), 8)
+                actual_events = (
+                    session.query(DividendEvent)
+                    .filter_by(company_id=comp.id, status="ACTUAL")
+                    .all()
+                )
+                self.assertEqual(len(actual_events), 8)
+
+                total_events = session.query(DividendEvent).filter_by(company_id=comp.id).all()
+                self.assertGreater(len(total_events), 8)
 
                 metric = session.query(DividendMetric).filter_by(company_id=comp.id).first()
                 self.assertIsNotNone(metric)

@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="section-header">
-  <h1 class="section-title">Dividend Calendar</h1>
+  <h1 class="section-title">Dividend Calendar &mdash; {% if selected_market == 'india' %}India (&#8377; INR){% else %}Global / Rest ($ USD){% endif %}</h1>
   <span style="font-size: 0.9rem; color: var(--text-muted);">Monthly ex-dividend dates and scheduled payment timeline</span>
 </div>
 

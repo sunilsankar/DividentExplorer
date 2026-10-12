@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Any, Optional, Sequence
-from sqlalchemy import case, desc, distinct, or_, select
+from sqlalchemy import and_, case, desc, distinct, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import Company, CompanyRelationship, DividendEvent, DividendMetric, Exchange, FinancialMetric
@@ -22,8 +22,9 @@ class StockService:
         self.price_repo = PriceRepository(session)
         self.financial_repo = FinancialRepository(session)
 
-    def list_exchanges(self, active_only: bool = True) -> Sequence[Exchange]:
-        return self.exchange_repo.list_all(active_only=active_only)
+    def list_exchanges(self, active_only: bool = True, market: Optional[str] = None) -> Sequence[Exchange]:
+        rows = list(self.exchange_repo.list_all(active_only=active_only))
+        return [ex for ex in self._filter_market(rows, market)]
 
     def get_exchange_by_code(self, code: str) -> Optional[Exchange]:
         return self.exchange_repo.get_by_code(code)
@@ -354,28 +355,30 @@ class StockService:
         asset_type: Optional[str] = None,
         currency: Optional[str] = None,
         exchange: Optional[str] = None,
+        market: Optional[str] = None,
         limit: int = 200,
     ) -> Sequence[tuple[DividendEvent, Company]]:
+        # ponytail: market scoping hardcodes "india" = NSE/BSE/INR. Add Canada/AU etc when needed.
         base_stmt = (
             select(DividendEvent, Company)
             .join(Company, DividendEvent.company_id == Company.id)
         )
+        needs_exchange = bool(currency or exchange or market)
+        if needs_exchange:
+            base_stmt = base_stmt.join(Exchange, Company.exchange_id == Exchange.id)
+        if market:
+            base_stmt = base_stmt.where(self._market_clause(market))
         if asset_type:
             base_stmt = base_stmt.where(Company.asset_type == asset_type.upper())
         if currency:
-            base_stmt = (
-                base_stmt.join(Exchange, Company.exchange_id == Exchange.id)
-                .where(
-                    or_(
-                        Company.currency == currency.upper(),
-                        DividendEvent.currency == currency.upper(),
-                        Exchange.currency == currency.upper(),
-                    )
+            base_stmt = base_stmt.where(
+                or_(
+                    Company.currency == currency.upper(),
+                    DividendEvent.currency == currency.upper(),
+                    Exchange.currency == currency.upper(),
                 )
             )
         if exchange:
-            if not currency:
-                base_stmt = base_stmt.join(Exchange, Company.exchange_id == Exchange.id)
             base_stmt = base_stmt.where(Exchange.code == exchange.upper())
         stmt = base_stmt
         if start_date:
@@ -395,11 +398,35 @@ class StockService:
         stmt = stmt.order_by(desc(DividendEvent.ex_date)).limit(limit)
         return self.session.execute(stmt).all()
 
-    def list_currencies(self) -> list[str]:
+    def list_currencies(self, market: Optional[str] = None) -> list[str]:
         # ponytail: distinct currencies from companies and exchanges for calendar filter
-        c_res = self.session.execute(select(Company.currency).where(Company.currency.is_not(None)).distinct()).scalars().all()
-        e_res = self.session.execute(select(Exchange.currency).where(Exchange.currency.is_not(None)).distinct()).scalars().all()
+        c_stmt = select(Company.currency).where(Company.currency.is_not(None)).distinct()
+        e_stmt = select(Exchange.currency).where(Exchange.currency.is_not(None)).distinct()
+        if market:
+            c_stmt = c_stmt.join(Exchange, Company.exchange_id == Exchange.id)
+            e_stmt = e_stmt.where(self._market_clause(market))
+            c_stmt = c_stmt.where(self._market_clause(market))
+        c_res = self.session.execute(c_stmt).scalars().all()
+        e_res = self.session.execute(e_stmt).scalars().all()
         return sorted({c.upper() for c in (list(c_res) + list(e_res)) if c})
+
+    @staticmethod
+    def _market_clause(market: str):
+        # ponytail: hardcoded "india" scope; broaden when adding markets
+        m = market.lower()
+        if m == "india":
+            return or_(Exchange.code.in_(["NSE", "BSE"]), Exchange.country.ilike("India"))
+        return and_(
+            Exchange.code.notin_(["NSE", "BSE"]),
+            Exchange.country.notilike("India"),
+        )
+
+    def _filter_market(self, rows: Sequence[Exchange], market: Optional[str]):
+        if not market:
+            return rows
+        if market.lower() == "india":
+            return [ex for ex in rows if ex.code in ("NSE", "BSE") or (ex.country or "").lower() == "india"]
+        return [ex for ex in rows if ex.code not in ("NSE", "BSE") and (ex.country or "").lower() != "india"]
 
     def get_industry_summaries(self) -> list[dict[str, Any]]:
         # Retrieve all active companies with metrics
