@@ -2,7 +2,7 @@
 
 import calendar as pycalendar
 import subprocess
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, Form, Request, status
@@ -12,7 +12,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.db.models import Company, DividendMetric, PriceHistory, SyncJob, utcnow
+from app.db.models import Company, DividendMetric, Exchange, PriceHistory, SyncJob, utcnow
 from app.db.repositories import (
     ChangeRepository,
     CompanyRepository,
@@ -828,6 +828,7 @@ def planner_view(
     target: Optional[str] = "100",
     asset_type: Optional[str] = None,
     currency: Optional[str] = None,
+    market: Optional[str] = None,
     holdings: Optional[str] = "6",
     tab: Optional[str] = "plan",
     page: Optional[str] = "1",
@@ -838,7 +839,9 @@ def planner_view(
     num_holdings = max(1, min(20, int(_safe_float(holdings, 6) or 6)))
     norm_asset = asset_type.strip().upper() if asset_type else None
     norm_currency = currency.strip().upper() if currency else None
-    active_tab = "assets" if tab and tab.strip().lower() == "assets" else "plan"
+    clean_tab = tab.strip().lower() if tab else "plan"
+    active_tab = clean_tab if clean_tab in ("snapshot", "assets") else "plan"
+    clean_market = market.strip().lower() if market else None
 
     # ponytail: subquery for latest close price per company; upgrade to materialized view if slow at scale
     latest_price_sq = (
@@ -863,6 +866,8 @@ def planner_view(
             latest_price_sq > 0,
         )
     )
+    if clean_market:
+        stmt = stmt.join(Exchange, Company.exchange_id == Exchange.id).where(StockService._market_clause(clean_market))
     if norm_asset in ("STOCK", "ETF"):
         stmt = stmt.where(Company.asset_type == norm_asset)
     if norm_currency:
@@ -874,12 +879,14 @@ def planner_view(
     # Build full candidate pool with badges and standalone capital
     annual_target = monthly_target * 12
     pool: list[dict] = []
+    prices_by_comp_id: dict[int, float] = {}
     for comp, metric, price in candidates:
         yld = metric.current_yield
         qual = metric.dividend_quality_score
         pay = metric.payout_ratio
         yrs_g = metric.years_growing
         pr = round(float(price), 2)
+        prices_by_comp_id[comp.id] = pr
         badges: list[str] = []
         if yrs_g and yrs_g >= 25:
             badges.append("Aristocrat")
@@ -891,8 +898,9 @@ def planner_view(
             badges.append("High Yield")
         if qual and qual >= 80:
             badges.append("High Quality")
-        # Standalone capital: how much to hit target with only this asset
-        standalone_capital = round(annual_target / (yld * pr), 0) if yld > 0 and pr > 0 else 0
+        # Standalone capital: how much to hit target with only this asset (annual_target / yield)
+        standalone_capital = round(annual_target / yld, 0) if yld > 0 else 0
+        annual_div = metric.annual_dividend or 0.0
         pool.append({
             "ticker": comp.ticker,
             "name": comp.name,
@@ -900,13 +908,19 @@ def planner_view(
             "currency": comp.currency,
             "sector": comp.sector or "Unknown",
             "yield": yld,
-            "annual_dividend": metric.annual_dividend,
+            "annual_dividend": annual_div,
             "quality": qual,
             "payout_ratio": pay,
             "years_growing": yrs_g,
+            "growth_3y": metric.growth_3y,
             "price": pr,
             "badges": badges,
             "standalone_capital": standalone_capital,
+            "daily_income_per_share": round(annual_div / 365.0, 4),
+            "daily_income_100": round((annual_div * 100.0) / 365.0, 2),
+            "min_invest_1": pr,
+            "min_invest_100": round(pr * 100.0, 2),
+            "min_invest_target": standalone_capital,
         })
 
     # ponytail: greedy sector diversification (max 2 per sector); upgrade to LP solver if precision needed
@@ -926,7 +940,7 @@ def planner_view(
     total_capital = 0.0
     total_income = 0.0
     for h in selected:
-        shares = max(1, int(per_asset_income / h["annual_dividend"] + 0.5))
+        shares = max(1, int(per_asset_income / h["annual_dividend"] + 0.5)) if h["annual_dividend"] > 0 else 1
         capital = round(shares * h["price"], 2)
         income = round(shares * h["annual_dividend"], 2)
         total_capital += capital
@@ -944,6 +958,42 @@ def planner_view(
     actual_monthly = round(total_income / 12, 2)
     actual_daily = round(total_income / 365, 2)
 
+    # Snapshot data: upcoming ex-dividend events (next 7 days) and top high-yield + growth picks
+    stock_service = StockService(db)
+    today = date.today()
+    next_week = today + timedelta(days=7)
+    raw_events = stock_service.get_dividend_calendar(
+        start_date=today,
+        end_date=next_week,
+        asset_type=norm_asset,
+        currency=norm_currency,
+        market=clean_market,
+        limit=100,
+    )
+    upcoming_events: list[dict[str, Any]] = []
+    for ev, comp in raw_events:
+        pr = prices_by_comp_id.get(comp.id)
+        amt = float(ev.amount) if ev.amount else 0.0
+        upcoming_events.append({
+            "ex_date": ev.ex_date,
+            "payment_date": ev.payment_date,
+            "ticker": comp.ticker,
+            "name": comp.name,
+            "asset_type": comp.asset_type,
+            "currency": ev.currency or comp.currency,
+            "amount": amt,
+            "daily_income": round(amt / 365.0, 4),
+            "price": pr,
+        })
+
+    # ponytail: rank score = yield% * (1 + years_growing*0.02) * (quality/100); swap to user weightings if requested
+    def _growth_score(p: dict) -> float:
+        yrs = p.get("years_growing") or 0
+        qual = (p.get("quality") or 50) / 100.0
+        return (p["yield"] * 100.0) * (1.0 + min(yrs, 25) * 0.02) * qual
+
+    snapshot_picks = sorted(pool, key=_growth_score, reverse=True)[:30]
+
     # ponytail: in-memory pagination over candidate pool; upgrade to SQL offset/limit if pool > 10,000
     page_num = max(1, int(_safe_float(page, 1) or 1))
     size_num = max(1, min(100, int(_safe_float(page_size, 15) or 15)))
@@ -954,6 +1004,9 @@ def planner_view(
     paged_pool = pool[(page_num - 1) * size_num : page_num * size_num]
     pool_start = ((page_num - 1) * size_num + 1) if pool_count > 0 else 0
     pool_end = min(page_num * size_num, pool_count)
+
+    currencies = stock_service.list_currencies(market=clean_market)
+    planner_curr_sym = "₹" if clean_market == "india" else (currency_symbol(norm_currency) if norm_currency else "€")
 
     return templates.TemplateResponse(
         request=request,
@@ -972,7 +1025,9 @@ def planner_view(
             "actual_daily": actual_daily,
             "selected_asset_type": asset_type or "",
             "selected_currency": currency or "",
-            "currencies": ["EUR", "USD", "GBP"],
+            "selected_market": clean_market or "",
+            "currencies": currencies,
+            "planner_currency_symbol": planner_curr_sym,
             "pool": paged_pool,
             "pool_count": pool_count,
             "page": page_num,
@@ -980,5 +1035,7 @@ def planner_view(
             "total_pages": pool_total_pages,
             "pool_start": pool_start,
             "pool_end": pool_end,
+            "upcoming_events": upcoming_events,
+            "snapshot_picks": snapshot_picks,
         },
     )

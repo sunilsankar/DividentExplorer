@@ -724,6 +724,66 @@ class WebViewsTestCase(unittest.TestCase):
         # Verify valid clickable pagination anchor without nested button
         self.assertNotIn("<button", resp_assets.text.split("<!-- Pagination Footer -->")[-1] if "<!-- Pagination Footer -->" in resp_assets.text else "")
 
+    def test_planner_snapshot_and_markets(self):
+        itc = self.session.query(Company).filter_by(ticker="ITC.NS").first()
+        itc_metric = DividendMetric(
+            company_id=itc.id,
+            current_yield=0.045,
+            annual_dividend=18.0,
+            years_paying=10,
+            years_growing=5,
+            quality_score=82.0,
+        )
+        itc_price = PriceHistory(
+            company_id=itc.id,
+            date=date(2024, 2, 14),
+            close=400.0,
+            open=398.0,
+            high=402.0,
+            low=397.0,
+            volume=1000000,
+        )
+        jnj = self.session.query(Company).filter_by(ticker="JNJ").first()
+        upcoming_date = date.today() + timedelta(days=3)
+        upcoming_event = DividendEvent(
+            company_id=jnj.id,
+            ex_date=upcoming_date,
+            pay_date=upcoming_date + timedelta(days=15),
+            amount=1.30,
+        )
+        self.session.add_all([itc_metric, itc_price, upcoming_event])
+        self.session.commit()
+
+        # 1. Snapshot tab rendering
+        resp_snap = self.client.get("/planner?tab=snapshot")
+        self.assertEqual(resp_snap.status_code, 200)
+        self.assertIn("Daily Dividend &amp; Min Invest", resp_snap.text)
+        self.assertIn("Upcoming Ex-Dividend Dates (Next 7 Days)", resp_snap.text)
+        self.assertIn("High Yield + Growth &bull; Minimum Investment Matrix", resp_snap.text)
+        self.assertIn("Min Invest (1 Sh)", resp_snap.text)
+        self.assertIn("Min Invest (100 Sh)", resp_snap.text)
+        self.assertIn("Capital for", resp_snap.text)
+        self.assertIn("Daily (1 Sh)", resp_snap.text)
+        self.assertIn("Daily (100 Sh)", resp_snap.text)
+        self.assertIn(upcoming_date.strftime("%Y-%m-%d"), resp_snap.text)
+
+        # 2. Market isolation
+        resp_india = self.client.get("/planner?tab=snapshot&market=india")
+        self.assertEqual(resp_india.status_code, 200)
+        self.assertIn("ITC.NS", resp_india.text)
+        self.assertNotIn("JNJ", resp_india.text)
+        self.assertIn("₹", resp_india.text)
+
+        resp_global = self.client.get("/planner?tab=snapshot&market=global")
+        self.assertEqual(resp_global.status_code, 200)
+        self.assertIn("JNJ", resp_global.text)
+        self.assertNotIn("ITC.NS", resp_global.text)
+
+        # 3. Market dropdown and currency in planner
+        self.assertIn('name="market"', resp_snap.text)
+        self.assertIn('value="india"', resp_snap.text)
+        self.assertIn('value="global"', resp_snap.text)
+
 
 if __name__ == "__main__":
     unittest.main()

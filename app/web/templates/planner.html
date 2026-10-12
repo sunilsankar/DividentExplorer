@@ -14,6 +14,14 @@
     <input type="number" name="target" value="{{ target|int }}" min="1" step="1" style="width:120px;">
   </label>
   <label style="display:flex;flex-direction:column;gap:0.25rem;font-size:0.8rem;color:var(--text-muted);">
+    Market
+    <select name="market">
+      <option value="" {% if not selected_market %}selected{% endif %}>All Markets</option>
+      <option value="global" {% if selected_market == 'global' %}selected{% endif %}>🌐 Global / Rest ($)</option>
+      <option value="india" {% if selected_market == 'india' %}selected{% endif %}>🇮🇳 India (₹)</option>
+    </select>
+  </label>
+  <label style="display:flex;flex-direction:column;gap:0.25rem;font-size:0.8rem;color:var(--text-muted);">
     Asset Type
     <select name="asset_type">
       <option value="" {% if not selected_asset_type %}selected{% endif %}>Both (Stocks & ETFs)</option>
@@ -42,20 +50,24 @@
 </form>
 
 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
-  <a href="/planner?tab={{ tab }}&target=50&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;50/mo</a>
-  <a href="/planner?tab={{ tab }}&target=100&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;100/mo</a>
-  <a href="/planner?tab={{ tab }}&target=250&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;250/mo</a>
-  <a href="/planner?tab={{ tab }}&target=500&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;500/mo</a>
-  <a href="/planner?tab={{ tab }}&target=1000&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">&euro;1,000/mo</a>
+  <a href="/planner?tab={{ tab }}&target=50&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">{{ planner_currency_symbol }}50/mo</a>
+  <a href="/planner?tab={{ tab }}&target=100&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">{{ planner_currency_symbol }}100/mo</a>
+  <a href="/planner?tab={{ tab }}&target=250&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">{{ planner_currency_symbol }}250/mo</a>
+  <a href="/planner?tab={{ tab }}&target=500&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">{{ planner_currency_symbol }}500/mo</a>
+  <a href="/planner?tab={{ tab }}&target=1000&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}" class="badge badge-neutral" style="text-decoration:none;padding:0.5rem 0.75rem;">{{ planner_currency_symbol }}1,000/mo</a>
 </div>
 
 <!-- Tab Navigation Bar -->
 <div class="tab-bar">
-  <a href="/planner?tab=plan&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page_size={{ page_size }}"
+  <a href="/planner?tab=plan&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}&page_size={{ page_size }}"
      class="{% if tab == 'plan' %}active{% endif %}">
     Portfolio Plan ({{ holdings|length }})
   </a>
-  <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page_size={{ page_size }}"
+  <a href="/planner?tab=snapshot&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}&page_size={{ page_size }}"
+     class="{% if tab == 'snapshot' %}active{% endif %}">
+    Daily Dividend &amp; Min Invest
+  </a>
+  <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}&page_size={{ page_size }}"
      class="{% if tab == 'assets' %}active{% endif %}">
     All Eligible Assets ({{ pool_count }})
   </a>
@@ -76,7 +88,7 @@
   <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;">
     <div class="card">
       <div class="card-title">Capital Needed</div>
-      <div class="card-value" style="font-size:1.8rem;">{{ "€%.0f"|format(total_capital) }}</div>
+      <div class="card-value" style="font-size:1.8rem;">{{ planner_currency_symbol }}{{ "%.0f"|format(total_capital) }}</div>
     </div>
     <div class="card">
       <div class="card-title">Portfolio Yield</div>
@@ -84,17 +96,17 @@
     </div>
     <div class="card">
       <div class="card-title">Monthly Income</div>
-      <div class="card-value" style="font-size:1.8rem;">{{ "€%.2f"|format(actual_monthly) }}</div>
-      <div class="card-subtext">Target: €{{ "%.0f"|format(target) }}/mo</div>
+      <div class="card-value" style="font-size:1.8rem;">{{ planner_currency_symbol }}{{ "%.2f"|format(actual_monthly) }}</div>
+      <div class="card-subtext">Target: {{ planner_currency_symbol }}{{ "%.0f"|format(target) }}/mo</div>
     </div>
     <div class="card">
       <div class="card-title">Daily Income</div>
-      <div class="card-value" style="font-size:1.8rem;">{{ "€%.2f"|format(actual_daily) }}</div>
+      <div class="card-value" style="font-size:1.8rem;">{{ planner_currency_symbol }}{{ "%.2f"|format(actual_daily) }}</div>
       <div class="card-subtext">Avg per calendar day</div>
     </div>
     <div class="card">
       <div class="card-title">Annual Income</div>
-      <div class="card-value" style="font-size:1.8rem;">{{ "€%.0f"|format(total_income) }}</div>
+      <div class="card-value" style="font-size:1.8rem;">{{ planner_currency_symbol }}{{ "%.0f"|format(total_income) }}</div>
     </div>
   </div>
 
@@ -165,13 +177,147 @@
   </div>
   {% endif %}
 
+{% elif tab == 'snapshot' %}
+  <!-- Section A: Upcoming Ex-Dividend Events (Next 7 Days) -->
+  <div class="card" style="margin-bottom:1.5rem;border-left:4px solid var(--accent-color);">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+      <div>
+        <h2 style="margin:0;font-size:1.25rem;">Upcoming Ex-Dividend Dates (Next 7 Days)</h2>
+        <div class="card-subtext" style="margin-top:0.25rem;">
+          Stocks going ex-dividend soonest. Buy before ex-date to capture the upcoming dividend payout.
+        </div>
+      </div>
+      <span class="badge badge-neutral">{{ upcoming_events|length }} Events</span>
+    </div>
+  </div>
+
+  {% if upcoming_events %}
+  <div style="overflow-x:auto;margin-bottom:2rem;">
+    <table>
+      <thead>
+        <tr>
+          <th>Ex-Date</th>
+          <th>Ticker</th>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Dividend / Share</th>
+          <th title="Annualized rate converted to daily income from 1 share">Daily / Share</th>
+          <th>1-Share Price</th>
+          <th>Pay Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in upcoming_events %}
+        <tr>
+          <td><strong>{{ ev.ex_date.strftime('%Y-%m-%d') if ev.ex_date else '-' }}</strong></td>
+          <td><strong><a href="/stocks/{{ ev.ticker }}">{{ ev.ticker }}</a></strong></td>
+          <td>{{ ev.name }}</td>
+          <td>
+            {% if ev.asset_type == 'ETF' %}
+              <span class="badge badge-warning">ETF</span>
+            {% else %}
+              <span class="badge badge-neutral">Stock</span>
+            {% endif %}
+          </td>
+          <td>{{ ev.currency|currency_symbol }}{{ "%.2f"|format(ev.amount) }}</td>
+          <td>{{ ev.currency|currency_symbol }}{{ "%.4f"|format(ev.daily_income) }}/day</td>
+          <td>
+            {% if ev.price %}
+              {{ ev.currency|currency_symbol }}{{ "%.2f"|format(ev.price) }}
+            {% else %}
+              <span style="color:var(--text-muted);">&mdash;</span>
+            {% endif %}
+          </td>
+          <td>{{ ev.payment_date.strftime('%Y-%m-%d') if ev.payment_date else 'TBD' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card" style="margin-bottom:2rem;text-align:center;padding:2rem;">
+    <p style="margin:0;color:var(--text-muted);">No ex-dividend events scheduled in the next 7 days matching current filters.</p>
+  </div>
+  {% endif %}
+
+  <!-- Section B: Top High-Yield with Growth & Minimum Investment -->
+  <div class="card" style="margin-bottom:1.5rem;border-left:4px solid #10b981;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+      <div>
+        <h2 style="margin:0;font-size:1.25rem;">High Yield + Growth &bull; Minimum Investment Matrix</h2>
+        <div class="card-subtext" style="margin-top:0.25rem;">
+          Ranked by dividend yield and dividend growth track record. Compares entry cost across 1 share, 100 shares, and target income.
+        </div>
+      </div>
+      <span class="badge badge-success">{{ snapshot_picks|length }} Top Picks</span>
+    </div>
+  </div>
+
+  {% if snapshot_picks %}
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Name</th>
+          <th>Yield</th>
+          <th title="Consecutive years growing / 3-year growth">Growth</th>
+          <th title="Annual dividend per share">Div / Share</th>
+          <th title="Daily dividend income earned per 1 share">Daily (1 Sh)</th>
+          <th title="Daily dividend income earned per 100 shares">Daily (100 Sh)</th>
+          <th title="Minimum entry capital to own 1 share">Min Invest (1 Sh)</th>
+          <th title="Entry capital to own standard 100-share round lot">Min Invest (100 Sh)</th>
+          <th title="Total standalone capital required to generate {{ planner_currency_symbol }}{{ target|int }}/mo">Capital for {{ planner_currency_symbol }}{{ target|int }}/mo</th>
+          <th>Highlights</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in snapshot_picks %}
+        <tr>
+          <td><strong><a href="/stocks/{{ p.ticker }}">{{ p.ticker }}</a></strong></td>
+          <td>
+            {{ p.name }}
+            {% if p.asset_type == 'ETF' %}
+              <span class="badge badge-warning" style="font-size:0.65rem;margin-left:0.25rem;">ETF</span>
+            {% endif %}
+          </td>
+          <td><span class="badge badge-success">{{ "%.2f"|format(p['yield'] * 100) }}%</span></td>
+          <td>
+            {% if p.years_growing %}
+              <span class="badge badge-neutral">{{ p.years_growing }}y streak</span>
+            {% elif p.growth_3y %}
+              <span class="badge badge-neutral">{{ "%.1f"|format(p.growth_3y * 100) }}% 3y</span>
+            {% else %}
+              <span style="color:var(--text-muted);">&mdash;</span>
+            {% endif %}
+          </td>
+          <td>{{ p.currency|currency_symbol }}{{ "%.2f"|format(p.annual_dividend) }}</td>
+          <td><strong style="color:var(--accent-color);">{{ p.currency|currency_symbol }}{{ "%.4f"|format(p.daily_income_per_share) }}</strong></td>
+          <td>{{ p.currency|currency_symbol }}{{ "%.2f"|format(p.daily_income_100) }}</td>
+          <td><strong>{{ p.currency|currency_symbol }}{{ "%.2f"|format(p.min_invest_1) }}</strong></td>
+          <td>{{ p.currency|currency_symbol }}{{ "%.2f"|format(p.min_invest_100) }}</td>
+          <td><strong style="color:var(--accent-color);">{{ p.currency|currency_symbol }}{{ "%.0f"|format(p.min_invest_target) }}</strong></td>
+          <td>
+            {% for b in p.badges %}<span class="badge badge-success" style="font-size:0.65rem;margin-right:0.2rem;">{{ b }}</span>{% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding:3rem;">
+    <p>No dividend assets found matching your criteria. Try adjusting filters or sync more companies.</p>
+  </div>
+  {% endif %}
+
 {% elif tab == 'assets' %}
-  <!-- Tab 2: All Eligible Assets (Paginated) -->
+  <!-- Tab 3: All Eligible Assets (Paginated) -->
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
     <div>
       <h2 style="margin:0;font-size:1.25rem;">All Eligible Dividend Assets ({{ pool_count }})</h2>
       <p style="color:var(--text-muted);font-size:0.85rem;margin:0.25rem 0 0 0;">
-        Standalone capital = total investment needed to hit €{{ "%.0f"|format(target) }}/mo using only this asset.
+        Standalone capital = total investment needed to hit {{ planner_currency_symbol }}{{ "%.0f"|format(target) }}/mo using only this asset.
       </p>
     </div>
     <form method="get" action="/planner" style="margin:0;display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--text-muted);">
@@ -179,6 +325,7 @@
       <input type="hidden" name="target" value="{{ target|int }}">
       <input type="hidden" name="asset_type" value="{{ selected_asset_type }}">
       <input type="hidden" name="currency" value="{{ selected_currency }}">
+      <input type="hidden" name="market" value="{{ selected_market }}">
       <input type="hidden" name="holdings" value="{{ num_holdings }}">
       <label for="planner-page-size">Per Page:</label>
       <select id="planner-page-size" name="page_size" onchange="this.form.submit()" style="padding:0.25rem 0.5rem;font-size:0.85rem;">
@@ -231,7 +378,7 @@
           {% else %}N/A{% endif %}
         </td>
         <td>{{ p.years_growing if p.years_growing is not none else 'N/A' }}</td>
-        <td>€{{ "%.0f"|format(p.standalone_capital) }}</td>
+        <td>{{ p.currency|currency_symbol }}{{ "%.0f"|format(p.standalone_capital) }}</td>
         <td>
           {% for b in p.badges %}<span class="badge badge-success" style="font-size:0.65rem;">{{ b }}</span>{% endfor %}
         </td>
@@ -246,13 +393,13 @@
     <div>Showing {{ pool_start }}&ndash;{{ pool_end }} of {{ pool_count }} assets</div>
     <div style="display:flex;gap:0.25rem;align-items:center;">
       {% if page > 1 %}
-        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page=1&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">&laquo; First</a>
-        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ page - 1 }}&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">&lsaquo; Prev</a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}&page=1&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">&laquo; First</a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}&page={{ page - 1 }}&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">&lsaquo; Prev</a>
       {% endif %}
       <span style="padding:0 0.5rem;">Page {{ page }} of {{ total_pages }}</span>
       {% if page < total_pages %}
-        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ page + 1 }}&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">Next &rsaquo;</a>
-        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&holdings={{ num_holdings }}&page={{ total_pages }}&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">Last &raquo;</a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}&page={{ page + 1 }}&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">Next &rsaquo;</a>
+        <a href="/planner?tab=assets&target={{ target|int }}&asset_type={{ selected_asset_type }}&currency={{ selected_currency }}&market={{ selected_market }}&holdings={{ num_holdings }}&page={{ total_pages }}&page_size={{ page_size }}" class="button-secondary" style="text-decoration:none;display:inline-block;padding:0.25rem 0.5rem;font-size:0.8rem;border-radius:4px;">Last &raquo;</a>
       {% endif %}
     </div>
   </div>
