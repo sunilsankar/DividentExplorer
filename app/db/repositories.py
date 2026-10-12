@@ -374,6 +374,75 @@ class CompanyRepository:
         stmt = select(func.count(Company.id)).where(self._unclassified_filter(grace_hours))
         return self.session.execute(stmt).scalar() or 0
 
+    def list_unclassified(
+        self,
+        missing_field: Optional[str] = None,
+        grace_hours: int = 24,
+        page: int = 1,
+        page_size: int = 30,
+    ) -> tuple[Sequence[Company], int]:
+        filters = [self._unclassified_filter(grace_hours)]
+        if missing_field == "sector":
+            filters.append((Company.asset_type != "ETF") & Company.sector.is_(None))
+        elif missing_field == "industry":
+            filters.append((Company.asset_type != "ETF") & Company.industry.is_(None))
+        elif missing_field == "country":
+            filters.append((Company.asset_type != "ETF") & Company.country.is_(None))
+        elif missing_field == "currency":
+            filters.append(Company.currency.is_(None))
+        elif missing_field == "multiple":
+            missing_count = (
+                case(((Company.asset_type != "ETF") & Company.sector.is_(None), 1), else_=0)
+                + case(((Company.asset_type != "ETF") & Company.industry.is_(None), 1), else_=0)
+                + case(((Company.asset_type != "ETF") & Company.country.is_(None), 1), else_=0)
+                + case((Company.currency.is_(None), 1), else_=0)
+            )
+            filters.append(missing_count > 1)
+
+        count_stmt = select(func.count(Company.id)).where(*filters)
+        total = self.session.execute(count_stmt).scalar() or 0
+
+        offset = (max(1, page) - 1) * page_size
+        stmt = (
+            select(Company)
+            .where(*filters)
+            .order_by(Company.ticker)
+            .offset(offset)
+            .limit(page_size)
+        )
+        return self.session.execute(stmt).scalars().all(), total
+
+    def count_unclassified_by_field(self, grace_hours: int = 24) -> dict[str, int]:
+        base = self._unclassified_filter(grace_hours)
+        sec_cond = (Company.asset_type != "ETF") & Company.sector.is_(None)
+        ind_cond = (Company.asset_type != "ETF") & Company.industry.is_(None)
+        cou_cond = (Company.asset_type != "ETF") & Company.country.is_(None)
+        cur_cond = Company.currency.is_(None)
+        mult_cond = (
+            case((sec_cond, 1), else_=0)
+            + case((ind_cond, 1), else_=0)
+            + case((cou_cond, 1), else_=0)
+            + case((cur_cond, 1), else_=0)
+        ) > 1
+
+        stmt = select(
+            func.count(Company.id).label("total"),
+            func.sum(case((sec_cond, 1), else_=0)).label("sector"),
+            func.sum(case((ind_cond, 1), else_=0)).label("industry"),
+            func.sum(case((cou_cond, 1), else_=0)).label("country"),
+            func.sum(case((cur_cond, 1), else_=0)).label("currency"),
+            func.sum(case((mult_cond, 1), else_=0)).label("multiple"),
+        ).where(base)
+        row = self.session.execute(stmt).one()
+        return {
+            "all": row.total or 0,
+            "sector": row.sector or 0,
+            "industry": row.industry or 0,
+            "country": row.country or 0,
+            "currency": row.currency or 0,
+            "multiple": row.multiple or 0,
+        }
+
     def delete_unclassified(self, grace_hours: int = 24) -> int:
         stmt = select(Company.id).where(self._unclassified_filter(grace_hours))
         ids = list(self.session.execute(stmt).scalars().all())

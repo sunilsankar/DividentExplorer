@@ -357,6 +357,59 @@ def stocks_table_partial(
     )
 
 
+@router.get("/stocks/unclassified", response_class=HTMLResponse)
+def unclassified_stocks_view(
+    request: Request,
+    missing: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 30,
+    db: Session = Depends(get_db),
+):
+    valid_missing = {"sector", "industry", "country", "currency", "multiple"}
+    active_filter = missing if missing in valid_missing else None
+
+    stock_service = StockService(db)
+    companies, total, counts = stock_service.list_unclassified(
+        missing_field=active_filter,
+        page=page,
+        page_size=page_size,
+    )
+    total_pages = max(1, (total + page_size - 1) // page_size) if total > 0 else 1
+
+    stocks_data = []
+    for comp in companies:
+        missing_fields = []
+        if comp.asset_type != "ETF":
+            if not comp.sector:
+                missing_fields.append("Sector")
+            if not comp.industry:
+                missing_fields.append("Industry")
+            if not comp.country:
+                missing_fields.append("Country")
+        if not comp.currency:
+            missing_fields.append("Currency")
+
+        stocks_data.append({
+            "company": comp,
+            "missing_fields": missing_fields,
+        })
+
+    return templates.TemplateResponse(
+        request=request,
+        name="unclassified.html",
+        context={
+            "active_tab": "stocks",
+            "stocks": stocks_data,
+            "total_count": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "counts": counts,
+            "active_filter": active_filter or "all",
+        },
+    )
+
+
 @router.get("/stocks/{ticker}", response_class=HTMLResponse)
 def stock_detail_view(ticker: str, request: Request, db: Session = Depends(get_db)):
     stock_service = StockService(db)

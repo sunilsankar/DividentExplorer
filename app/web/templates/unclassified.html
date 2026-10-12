@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Unclassified Stocks &bull; Dividend Explorer{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.5rem;">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <div style="font-size: 0.85rem; margin-bottom: 0.25rem;">
+        <a href="/stocks" style="color: var(--text-secondary); text-decoration: none;">&larr; Stock Explorer</a>
+        <span style="color: var(--text-muted); margin: 0 0.5rem;">|</span>
+        <a href="/sync" style="color: var(--text-secondary); text-decoration: none;">Sync Status</a>
+      </div>
+      <h1 class="section-title" style="margin: 0;">Unclassified Stocks</h1>
+      <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">
+        Stocks missing sector, industry, country, or currency that are past the grace period.
+      </p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <a href="/sync" class="button button-secondary" style="text-decoration: none; font-size: 0.85rem;">
+        Manage in Sync &rarr;
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Filter Tabs -->
+<div class="tab-bar" style="margin-bottom: 1.5rem;">
+  <a href="/stocks/unclassified" class="{% if active_filter == 'all' %}active{% endif %}">
+    All ({{ counts.all }})
+  </a>
+  <a href="/stocks/unclassified?missing=sector" class="{% if active_filter == 'sector' %}active{% endif %}">
+    Missing Sector ({{ counts.sector }})
+  </a>
+  <a href="/stocks/unclassified?missing=industry" class="{% if active_filter == 'industry' %}active{% endif %}">
+    Missing Industry ({{ counts.industry }})
+  </a>
+  <a href="/stocks/unclassified?missing=country" class="{% if active_filter == 'country' %}active{% endif %}">
+    Missing Country ({{ counts.country }})
+  </a>
+  <a href="/stocks/unclassified?missing=currency" class="{% if active_filter == 'currency' %}active{% endif %}">
+    Missing Currency ({{ counts.currency }})
+  </a>
+  <a href="/stocks/unclassified?missing=multiple" class="{% if active_filter == 'multiple' %}active{% endif %}">
+    Multiple Missing ({{ counts.multiple }})
+  </a>
+</div>
+
+<!-- Stocks Table Card -->
+<div class="card" style="padding: 0; overflow: hidden;">
+  <table class="table" style="margin: 0;">
+    <thead>
+      <tr>
+        <th style="padding-left: 1.25rem;">Ticker</th>
+        <th>Name</th>
+        <th>Exchange</th>
+        <th>Type</th>
+        <th>Missing Fields</th>
+        <th style="padding-right: 1.25rem;">Last Synced</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in stocks %}
+      <tr>
+        <td style="padding-left: 1.25rem;">
+          <a href="/stocks/{{ item.company.ticker }}"><strong>{{ item.company.ticker }}</strong></a>
+        </td>
+        <td>{{ item.company.name }}</td>
+        <td>{{ item.company.exchange_code or "—" }}</td>
+        <td>
+          <span class="badge badge-neutral">{{ item.company.asset_type }}</span>
+        </td>
+        <td>
+          <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+            {% for field in item.missing_fields %}
+            <span class="badge badge-warning">{{ field }}</span>
+            {% endfor %}
+          </div>
+        </td>
+        <td style="padding-right: 1.25rem; font-size: 0.85rem; color: var(--text-secondary);">
+          {% if item.company.last_synced_at %}
+            {{ item.company.last_synced_at.strftime('%Y-%m-%d %H:%M') }}
+          {% else %}
+            Never <span style="font-size: 0.75rem; color: var(--text-muted);">(Created {{ item.company.created_at.strftime('%Y-%m-%d') }})</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+          {% if active_filter == 'all' %}
+            No unclassified stocks found. All stocks in the system are fully classified!
+          {% else %}
+            No stocks found matching this filter.
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Pagination Controls -->
+  {% if total_count > 0 %}
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; font-size: 0.85rem; color: var(--text-muted); padding: 1rem 1.25rem; border-top: 1px solid var(--border-color);">
+    <div>Showing {{ stocks|length }} of {{ total_count }} companies</div>
+    <div style="display: flex; gap: 0.25rem; align-items: center;">
+      {% set filter_param = '&missing=' ~ active_filter if active_filter != 'all' else '' %}
+      {% if page > 1 %}
+        <a href="/stocks/unclassified?page=1{{ filter_param }}" class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; text-decoration: none;">&laquo; First</a>
+        <a href="/stocks/unclassified?page={{ page - 1 }}{{ filter_param }}" class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; text-decoration: none;">&lsaquo; Prev</a>
+      {% endif %}
+      <span style="padding: 0 0.5rem;">Page {{ page }} of {{ total_pages }}</span>
+      {% if page < total_pages %}
+        <a href="/stocks/unclassified?page={{ page + 1 }}{{ filter_param }}" class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; text-decoration: none;">Next &rsaquo;</a>
+        <a href="/stocks/unclassified?page={{ total_pages }}{{ filter_param }}" class="button-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; text-decoration: none;">Last &raquo;</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

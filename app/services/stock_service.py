@@ -468,3 +468,19 @@ class StockService:
                 "top_tickers": top_tickers,
             })
         return summaries
+
+    def list_unclassified(
+        self,
+        missing_field: Optional[str] = None,
+        grace_hours: int = 24,
+        page: int = 1,
+        page_size: int = 30,
+    ) -> tuple[Sequence[Company], int, dict[str, int]]:
+        companies, total = self.company_repo.list_unclassified(
+            missing_field=missing_field,
+            grace_hours=grace_hours,
+            page=page,
+            page_size=page_size,
+        )
+        counts = self.company_repo.count_unclassified_by_field(grace_hours=grace_hours)
+        return companies, total, counts

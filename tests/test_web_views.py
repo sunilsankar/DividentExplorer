@@ -784,6 +784,86 @@ class WebViewsTestCase(unittest.TestCase):
         self.assertIn('value="india"', resp_snap.text)
         self.assertIn('value="global"', resp_snap.text)
 
+    def test_unclassified_stocks_view(self):
+        exch = self.session.query(Exchange).first()
+        old_time = utcnow() - timedelta(hours=48)
+
+        s1 = Company(
+            ticker="NOCLASS_SEC",
+            exchange_id=exch.id,
+            name="No Sector Co",
+            sector=None,
+            industry="Software",
+            country="USA",
+            currency="USD",
+            asset_type="STOCK",
+            created_at=old_time,
+            last_synced_at=old_time,
+        )
+        s2 = Company(
+            ticker="NOCLASS_CUR",
+            exchange_id=exch.id,
+            name="No Currency Co",
+            sector="Technology",
+            industry="Software",
+            country="USA",
+            currency=None,
+            asset_type="STOCK",
+            created_at=old_time,
+            last_synced_at=old_time,
+        )
+        s3 = Company(
+            ticker="NOCLASS_MULT",
+            exchange_id=exch.id,
+            name="No Multiple Co",
+            sector=None,
+            industry=None,
+            country=None,
+            currency="USD",
+            asset_type="STOCK",
+            created_at=old_time,
+            last_synced_at=old_time,
+        )
+        self.session.add_all([s1, s2, s3])
+        self.session.commit()
+
+        # 1. Base unclassified view
+        resp = self.client.get("/stocks/unclassified")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Unclassified Stocks", resp.text)
+        self.assertIn("NOCLASS_SEC", resp.text)
+        self.assertIn("NOCLASS_CUR", resp.text)
+        self.assertIn("NOCLASS_MULT", resp.text)
+        self.assertIn("Missing Sector", resp.text)
+        self.assertIn("Missing Currency", resp.text)
+
+        # 2. Filter: missing sector
+        resp_sec = self.client.get("/stocks/unclassified?missing=sector")
+        self.assertEqual(resp_sec.status_code, 200)
+        self.assertIn("NOCLASS_SEC", resp_sec.text)
+        self.assertIn("NOCLASS_MULT", resp_sec.text)
+        self.assertNotIn("NOCLASS_CUR", resp_sec.text)
+
+        # 3. Filter: missing currency
+        resp_cur = self.client.get("/stocks/unclassified?missing=currency")
+        self.assertEqual(resp_cur.status_code, 200)
+        self.assertIn("NOCLASS_CUR", resp_cur.text)
+        self.assertNotIn("NOCLASS_SEC", resp_cur.text)
+        self.assertNotIn("NOCLASS_MULT", resp_cur.text)
+
+        # 4. Filter: multiple missing
+        resp_mult = self.client.get("/stocks/unclassified?missing=multiple")
+        self.assertEqual(resp_mult.status_code, 200)
+        self.assertIn("NOCLASS_MULT", resp_mult.text)
+        self.assertNotIn("NOCLASS_SEC", resp_mult.text)
+        self.assertNotIn("NOCLASS_CUR", resp_mult.text)
+
+        # 5. Check sync status link
+        resp_sync = self.client.get("/sync/status")
+        self.assertEqual(resp_sync.status_code, 200)
+        self.assertIn("/stocks/unclassified", resp_sync.text)
+        self.assertIn("View Unclassified", resp_sync.text)
+
 
 if __name__ == "__main__":
     unittest.main()

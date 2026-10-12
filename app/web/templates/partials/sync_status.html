@@ -118,16 +118,23 @@
           Stocks missing sector, industry, country, or currency that failed to resolve during sync.
         </p>
       </div>
-      <form hx-post="/sync/cleanup-unclassified?tab={{ tab }}" hx-target="#sync-status-container" hx-swap="outerHTML" style="margin: 0;">
-        <button type="submit" class="button-secondary"
-          {% if unclassified_count > 0 %}
-          hx-confirm="Permanently delete {{ unclassified_count }} unclassified stock(s) older than {{ auto_cleanup_grace_hours }}h?"
-          {% else %}
-          disabled style="opacity: 0.5; cursor: not-allowed;"
-          {% endif %}>
-          Clean Up Unclassified
-        </button>
-      </form>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        {% if unclassified_count > 0 %}
+        <a href="/stocks/unclassified" class="button-secondary" style="text-decoration: none; padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+          View Unclassified &rarr;
+        </a>
+        {% endif %}
+        <form hx-post="/sync/cleanup-unclassified?tab={{ tab }}" hx-target="#sync-status-container" hx-swap="outerHTML" style="margin: 0;">
+          <button type="submit" class="button-secondary"
+            {% if unclassified_count > 0 %}
+            hx-confirm="Permanently delete {{ unclassified_count }} unclassified stock(s) older than {{ auto_cleanup_grace_hours }}h?"
+            {% else %}
+            disabled style="opacity: 0.5; cursor: not-allowed;"
+            {% endif %}>
+            Clean Up Unclassified
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 
